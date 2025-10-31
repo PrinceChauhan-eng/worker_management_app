@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../models/user.dart';
 import '../providers/user_provider.dart';
 import '../services/session_manager.dart';
+import '../services/database_helper.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
+import '../utils/validators.dart';
 import 'admin_dashboard_screen.dart';
 import 'worker_dashboard_screen.dart';
 import 'signup_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -24,6 +29,74 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isObscure = true;
   bool _isLoading = false;
   String _selectedRole = 'admin'; // Default role
+  bool _rememberMe = false; // Remember me checkbox
+  String _loginMethod = 'phone'; // phone, email, or id
+  String? _lastLoginTime; // Store last login time
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberMe();
+    _loadLastLoginTime();
+  }
+
+  Future<void> _loadRememberMe() async {
+    try {
+      final sessionManager = SessionManager();
+      final remembered = await sessionManager.getRememberMe();
+      if (remembered != null) {
+        setState(() {
+          _phoneController.text = remembered['phone'] ?? '';
+          _rememberMe = true;
+        });
+      } else {
+        // Set default admin phone number
+        setState(() {
+          _phoneController.text = '8104246218';
+        });
+      }
+    } catch (e) {
+      print('Error loading remembered data: $e');
+    }
+  }
+
+  Future<void> _loadLastLoginTime() async {
+    try {
+      final sessionManager = SessionManager();
+      final lastLogin = await sessionManager.getLastLoginTime();
+      if (lastLogin != null) {
+        setState(() {
+          _lastLoginTime = lastLogin;
+        });
+      }
+    } catch (e) {
+      print('Error loading last login time: $e');
+    }
+  }
+
+  Future<void> _trackLoginAttempt(User? user, String input) async {
+    try {
+      final dbHelper = DatabaseHelper();
+      await dbHelper.initDB();
+      
+      final loginHistory = {
+        'user_id': user?.id ?? 0,
+        'user_name': user?.name ?? 'Unknown',
+        'user_role': user?.role ?? 'unknown',
+        'login_time': DateTime.now().millisecondsSinceEpoch,
+        'ip_address': '127.0.0.1', // In a real app, you'd get the actual IP
+        'user_agent': kIsWeb ? 'Web Browser' : 'Mobile App',
+        'success': user != null ? 1 : 0,
+        'failure_reason': user != null ? null : 'Invalid credentials',
+      };
+      
+      await dbHelper.insertLoginHistory(loginHistory);
+      print('Login attempt tracked successfully');
+    } catch (e) {
+      print('Error tracking login attempt: $e');
+      // Don't let tracking errors affect the login process
+    }
+  }
 
   @override
   void dispose() {
@@ -42,8 +115,16 @@ class _LoginScreenState extends State<LoginScreen> {
         });
 
         final userProvider = Provider.of<UserProvider>(context, listen: false);
-        print('Attempting to authenticate user with phone: ${_phoneController.text.trim()} and password: ${_passwordController.text.trim()}');
+        print('Attempting to authenticate user with $_loginMethod: ${_phoneController.text.trim()} and password: ${_passwordController.text.trim()}');
         print('Selected role: $_selectedRole');
+        
+        // Clean input based on login method
+        String cleanInput;
+        if (_loginMethod == 'phone') {
+          cleanInput = Validators.cleanPhoneNumber(_phoneController.text.trim());
+        } else {
+          cleanInput = _phoneController.text.trim();
+        }
         
         // Add some debug information
         print('Current user provider state:');
@@ -51,10 +132,13 @@ class _LoginScreenState extends State<LoginScreen> {
         print('  Current user: ${userProvider.currentUser}');
         
         final user = await userProvider.authenticateUser(
-          _phoneController.text.trim(),
+          cleanInput,
           _passwordController.text.trim(),
         );
         print('Authentication completed. Result: ${user != null ? "SUCCESS" : "FAILED"}');
+
+        // Track login attempt
+        await _trackLoginAttempt(user, cleanInput);
 
         setState(() {
           _isLoading = false;
@@ -65,10 +149,26 @@ class _LoginScreenState extends State<LoginScreen> {
           if (user.role == _selectedRole) {
             print('User authenticated successfully. Role: ${user.role}, Selected role: $_selectedRole');
             try {
+              // Ensure database is initialized
+              print('Ensuring database is initialized...');
+              final dbHelper = DatabaseHelper();
+              await dbHelper.initDB();
+              print('Database initialized successfully');
+              
               // Save session
               SessionManager sessionManager = SessionManager();
               print('Saving session for user ID: ${user.id}, role: ${user.role}');
               await sessionManager.setLoginSession(user.id!, user.role);
+                            
+              // Handle remember me
+              if (_rememberMe) {
+                await sessionManager.setRememberMe(_phoneController.text.trim());
+                print('Remember me set for phone: ${_phoneController.text.trim()}');
+              } else {
+                await sessionManager.clearRememberMe();
+                print('Remember me cleared');
+              }
+                            
               print('Session saved successfully');
 
               // Set current user in provider
@@ -262,19 +362,151 @@ class _LoginScreenState extends State<LoginScreen> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    CustomTextField(
-                      controller: _phoneController,
-                      labelText: 'Phone Number',
-                      hintText: 'Enter your phone number',
-                      prefixIcon: Icons.phone,
-                      keyboardType: TextInputType.phone,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your phone number';
-                        }
-                        return null;
-                      },
+                    // Phone/Email/ID selector
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _loginMethod = 'phone';
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _loginMethod == 'phone'
+                                      ? const Color(0xFF1E88E5)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'Phone',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: _loginMethod == 'phone'
+                                          ? Colors.white
+                                          : Colors.grey[700],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _loginMethod = 'email';
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _loginMethod == 'email'
+                                      ? const Color(0xFF1E88E5)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'Email',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: _loginMethod == 'email'
+                                          ? Colors.white
+                                          : Colors.grey[700],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _loginMethod = 'id';
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _loginMethod == 'id'
+                                      ? const Color(0xFF1E88E5)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'ID',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: _loginMethod == 'id'
+                                          ? Colors.white
+                                          : Colors.grey[700],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(height: 20),
+                    // Dynamic input field based on login method
+                    if (_loginMethod == 'phone')
+                      CustomTextField(
+                        controller: _phoneController,
+                        labelText: 'Phone Number',
+                        hintText: 'Enter your phone number',
+                        prefixIcon: Icons.phone,
+                        keyboardType: TextInputType.phone,
+                        validator: Validators.validatePhoneNumber,
+                      )
+                    else if (_loginMethod == 'email')
+                      CustomTextField(
+                        controller: _phoneController,
+                        labelText: 'Email Address',
+                        hintText: 'Enter your email address',
+                        prefixIcon: Icons.email,
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter email address';
+                          }
+                          // Basic email validation
+                          if (!value.contains('@') || !value.contains('.')) {
+                            return 'Please enter a valid email';
+                          }
+                          return null;
+                        },
+                      )
+                    else
+                      CustomTextField(
+                        controller: _phoneController,
+                        labelText: 'Employee ID',
+                        hintText: 'Enter your employee ID',
+                        prefixIcon: Icons.badge,
+                        keyboardType: TextInputType.text,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your employee ID';
+                          }
+                          return null;
+                        },
+                      ),
                     const SizedBox(height: 20),
                     CustomTextField(
                       controller: _passwordController,
@@ -292,17 +524,64 @@ class _LoginScreenState extends State<LoginScreen> {
                           });
                         },
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your password';
-                        }
-                        if (value.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
-                        return null;
-                      },
+                      validator: Validators.validatePassword,
                     ),
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 15),
+                    // Remember Me Checkbox
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _rememberMe,
+                          onChanged: (value) {
+                            setState(() {
+                              _rememberMe = value ?? false;
+                            });
+                          },
+                          activeColor: const Color(0xFF1E88E5),
+                        ),
+                        Text(
+                          'Remember me',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Last Login Time Display
+                    if (_lastLoginTime != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.access_time,
+                              size: 16,
+                              color: Color(0xFF1E88E5),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Last login: $_lastLoginTime',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.blue.shade700,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
                     CustomButton(
                       text: 'Login',
                       onPressed: _login,
@@ -312,37 +591,57 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              // Sign Up Option (only for workers)
-              if (_selectedRole == 'worker')
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Don't have an account?",
+              // Sign Up Option (for both admin and worker)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Don't have an account?",
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const SignUpScreen()),
+                      );
+                    },
+                    child: Text(
+                      'Create Account',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
-                        color: Colors.grey[600],
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E88E5), // Royal Blue
                       ),
                     ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const SignUpScreen()),
-                        );
-                      },
-                      child: Text(
-                        'Create Account',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF1E88E5), // Royal Blue
-                        ),
-                      ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Forgot Password
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ForgotPasswordScreen()),
+                    );
+                  },
+                  child: Text(
+                    'Forgot Password?',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E88E5),
                     ),
-                  ],
+                  ),
                 ),
+              ),
               const SizedBox(height: 20),
               // Footer
               Text(

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../models/user.dart';
 import '../models/attendance.dart';
 import '../providers/user_provider.dart';
 import '../providers/attendance_provider.dart';

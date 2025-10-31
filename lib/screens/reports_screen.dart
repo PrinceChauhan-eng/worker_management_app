@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:csv/csv.dart';
+import 'dart:html' as html;
 import '../providers/user_provider.dart';
 import '../providers/attendance_provider.dart';
 import '../providers/advance_provider.dart';
@@ -48,6 +50,149 @@ class _ReportsScreenState extends State<ReportsScreen> {
       setState(() {
         _selectedMonth = DateFormat('yyyy-MM').format(picked);
       });
+    }
+  }
+
+  Future<void> _exportToCSV(BuildContext context) async {
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
+      final advanceProvider = Provider.of<AdvanceProvider>(context, listen: false);
+      final salaryProvider = Provider.of<SalaryProvider>(context, listen: false);
+
+      // Prepare CSV data
+      List<List<dynamic>> csvData = [];
+      
+      // Header
+      csvData.add([
+        'Report Type',
+        'Month',
+        'Generated Date',
+        'Total Workers',
+        'Total Attendance Days',
+        'Total Advance',
+        'Total Salary Paid'
+      ]);
+
+      // Calculate totals
+      final workers = userProvider.workers.where((user) => user.role == 'worker').toList();
+      final attendances = attendanceProvider.attendances
+          .where((att) => att.date.startsWith(_selectedMonth))
+          .toList();
+      final advances = advanceProvider.advances
+          .where((adv) => adv.date.startsWith(_selectedMonth))
+          .toList();
+      final salaries = salaryProvider.salaries
+          .where((sal) => sal.month == _selectedMonth)
+          .toList();
+
+      int totalWorkers = workers.length;
+      int totalAttendanceDays = attendances.where((att) => att.present).length;
+      double totalAdvance = advances.fold(0, (sum, adv) => sum + adv.amount);
+      double totalSalaryPaid = salaries.where((sal) => sal.paid).fold(0, (sum, sal) => sum + sal.totalSalary);
+
+      // Summary row
+      csvData.add([
+        'Monthly Summary',
+        _selectedMonth,
+        DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+        totalWorkers,
+        totalAttendanceDays,
+        totalAdvance.toStringAsFixed(2),
+        totalSalaryPaid.toStringAsFixed(2)
+      ]);
+
+      csvData.add([]); // Empty row
+
+      // Worker details
+      csvData.add(['Worker ID', 'Name', 'Phone', 'Wage', 'Join Date']);
+      for (var worker in workers) {
+        csvData.add([
+          worker.id,
+          worker.name,
+          worker.phone,
+          worker.wage.toStringAsFixed(2),
+          worker.joinDate
+        ]);
+      }
+
+      csvData.add([]); // Empty row
+
+      // Attendance details
+      csvData.add(['Attendance ID', 'Worker ID', 'Date', 'In Time', 'Out Time', 'Present']);
+      for (var attendance in attendances) {
+        csvData.add([
+          attendance.id,
+          attendance.workerId,
+          attendance.date,
+          attendance.inTime,
+          attendance.outTime,
+          attendance.present ? 'Yes' : 'No'
+        ]);
+      }
+
+      csvData.add([]); // Empty row
+
+      // Advance details
+      csvData.add(['Advance ID', 'Worker ID', 'Amount', 'Date']);
+      for (var advance in advances) {
+        csvData.add([
+          advance.id,
+          advance.workerId,
+          advance.amount.toStringAsFixed(2),
+          advance.date
+        ]);
+      }
+
+      csvData.add([]); // Empty row
+
+      // Salary details
+      csvData.add(['Salary ID', 'Worker ID', 'Month', 'Total Days', 'Total Salary', 'Paid']);
+      for (var salary in salaries) {
+        csvData.add([
+          salary.id,
+          salary.workerId,
+          salary.month,
+          salary.totalDays,
+          salary.totalSalary.toStringAsFixed(2),
+          salary.paid ? 'Yes' : 'No'
+        ]);
+      }
+
+      // Convert to CSV string
+      String csv = const ListToCsvConverter().convert(csvData);
+
+      // Create a download link for web
+      final bytes = csv.codeUnits;
+      final blob = html.Blob([bytes]);
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.document.createElement('a') as html.AnchorElement
+        ..href = url
+        ..style.display = 'none'
+        ..download = 'worker_management_report_$_selectedMonth.csv';
+      html.document.body?.children.add(anchor);
+      anchor.click();
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Report exported successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error exporting CSV: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -216,14 +361,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   style: GoogleFonts.poppins(),
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {
-                  // Future implementation for CSV export
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('CSV export feature coming soon!'),
-                    ),
-                  );
-                },
+                onTap: () => _exportToCSV(context),
               ),
             ),
           ],

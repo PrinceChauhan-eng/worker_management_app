@@ -5,12 +5,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../models/user.dart';
 import '../providers/user_provider.dart';
+import '../services/location_service.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
 
 class AddWorkerScreen extends StatefulWidget {
-  const AddWorkerScreen({super.key});
+  final User? editUser;
+  
+  const AddWorkerScreen({super.key, this.editUser});
 
   @override
   State<AddWorkerScreen> createState() => _AddWorkerScreenState();
@@ -23,16 +26,42 @@ class _AddWorkerScreenState extends State<AddWorkerScreen> {
   final _passwordController = TextEditingController();
   final _wageController = TextEditingController();
   final _designationController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _latitudeController = TextEditingController();
+  final _longitudeController = TextEditingController();
   
   String _joinDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   bool _isObscure = true;
   bool _isLoading = false;
+  bool _isCapturingLocation = false;
   User? _editingUser;
 
   @override
   void initState() {
     super.initState();
-    // Load workers to check if we're editing
+    
+    // If editing, populate fields with existing data
+    if (widget.editUser != null) {
+      _editingUser = widget.editUser;
+      _nameController.text = _editingUser!.name;
+      _phoneController.text = _editingUser!.phone;
+      _passwordController.text = _editingUser!.password;
+      _wageController.text = _editingUser!.wage.toString();
+      _joinDate = _editingUser!.joinDate.split(' ')[0]; // Extract date only
+      
+      // Populate location if available
+      if (_editingUser!.workLocationLatitude != null) {
+        _latitudeController.text = _editingUser!.workLocationLatitude!.toStringAsFixed(6);
+      }
+      if (_editingUser!.workLocationLongitude != null) {
+        _longitudeController.text = _editingUser!.workLocationLongitude!.toStringAsFixed(6);
+      }
+      if (_editingUser!.workLocationAddress != null) {
+        _addressController.text = _editingUser!.workLocationAddress!;
+      }
+    }
+    
+    // Load workers
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       userProvider.loadWorkers();
@@ -46,6 +75,9 @@ class _AddWorkerScreenState extends State<AddWorkerScreen> {
     _passwordController.dispose();
     _wageController.dispose();
     _designationController.dispose();
+    _addressController.dispose();
+    _latitudeController.dispose();
+    _longitudeController.dispose();
     super.dispose();
   }
 
@@ -63,6 +95,61 @@ class _AddWorkerScreenState extends State<AddWorkerScreen> {
     }
   }
 
+  Future<void> _captureCurrentLocation() async {
+    setState(() {
+      _isCapturingLocation = true;
+    });
+
+    try {
+      // Get current position
+      final position = await LocationService.getCurrentLocation();
+      
+      if (position == null) {
+        Fluttertoast.showToast(
+          msg: 'Unable to get location. Please enable location services.',
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.red,
+        );
+        setState(() {
+          _isCapturingLocation = false;
+        });
+        return;
+      }
+
+      // Get address from coordinates
+      final address = await LocationService.getAddressFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      setState(() {
+        _latitudeController.text = position.latitude.toStringAsFixed(6);
+        _longitudeController.text = position.longitude.toStringAsFixed(6);
+        _addressController.text = address ?? '';
+        _isCapturingLocation = false;
+      });
+
+      Fluttertoast.showToast(
+        msg: '✓ Location captured successfully!',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.green,
+      );
+    } catch (e) {
+      print('Error capturing location: $e');
+      Fluttertoast.showToast(
+        msg: 'Error capturing location: $e',
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.red,
+      );
+      setState(() {
+        _isCapturingLocation = false;
+      });
+    }
+  }
+
   _saveWorker() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -71,7 +158,15 @@ class _AddWorkerScreenState extends State<AddWorkerScreen> {
 
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       
-      // Create user object
+      // Parse location data
+      double? latitude;
+      double? longitude;
+      if (_latitudeController.text.isNotEmpty && _longitudeController.text.isNotEmpty) {
+        latitude = double.tryParse(_latitudeController.text);
+        longitude = double.tryParse(_longitudeController.text);
+      }
+      
+      // Create user object with location
       final user = User(
         id: _editingUser?.id,
         name: _nameController.text.trim(),
@@ -80,6 +175,12 @@ class _AddWorkerScreenState extends State<AddWorkerScreen> {
         role: 'worker',
         wage: double.tryParse(_wageController.text) ?? 0.0,
         joinDate: _joinDate,
+        workLocationLatitude: latitude,
+        workLocationLongitude: longitude,
+        workLocationAddress: _addressController.text.trim().isNotEmpty 
+            ? _addressController.text.trim() 
+            : null,
+        locationRadius: 100.0, // Default 100 meters
       );
 
       bool success;
@@ -91,6 +192,7 @@ class _AddWorkerScreenState extends State<AddWorkerScreen> {
             msg: 'Worker added successfully!',
             toastLength: Toast.LENGTH_SHORT,
             gravity: ToastGravity.BOTTOM,
+            backgroundColor: Colors.green,
           );
         }
       } else {
@@ -101,6 +203,7 @@ class _AddWorkerScreenState extends State<AddWorkerScreen> {
             msg: 'Worker updated successfully!',
             toastLength: Toast.LENGTH_SHORT,
             gravity: ToastGravity.BOTTOM,
+            backgroundColor: Colors.green,
           );
         }
       }
@@ -116,6 +219,7 @@ class _AddWorkerScreenState extends State<AddWorkerScreen> {
           msg: 'Operation failed. Please try again.',
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.red,
         );
       }
     }
@@ -262,6 +366,141 @@ class _AddWorkerScreenState extends State<AddWorkerScreen> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 30),
+                    
+                    // Work Location Section
+                    Text(
+                      'Work Location',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Set the worker\'s work location for attendance tracking',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    
+                    // GPS Capture Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _isCapturingLocation ? null : _captureCurrentLocation,
+                        icon: _isCapturingLocation
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Icon(Icons.my_location, size: 20),
+                        label: Text(
+                          _isCapturingLocation
+                              ? 'Fetching Location...'
+                              : 'Fetch Current Location (GPS)',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4CAF50),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // Manual Location Entry
+                    Text(
+                      'Or Enter Manually',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    
+                    // Address Field
+                    CustomTextField(
+                      controller: _addressController,
+                      labelText: 'Work Address',
+                      hintText: 'Enter work location address',
+                      prefixIcon: Icons.location_on,
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 15),
+                    
+                    // Latitude and Longitude Row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CustomTextField(
+                            controller: _latitudeController,
+                            labelText: 'Latitude',
+                            hintText: 'e.g. 28.6139',
+                            prefixIcon: Icons.map,
+                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: CustomTextField(
+                            controller: _longitudeController,
+                            labelText: 'Longitude',
+                            hintText: 'e.g. 77.2090',
+                            prefixIcon: Icons.map,
+                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    
+                    // Location Info
+                    if (_latitudeController.text.isNotEmpty && 
+                        _longitudeController.text.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: Colors.green.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Location set: ${_latitudeController.text}, ${_longitudeController.text}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.green.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    
                     const SizedBox(height: 30),
                     CustomButton(
                       text: _editingUser == null ? 'Add Worker' : 'Update Worker',

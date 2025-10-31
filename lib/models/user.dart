@@ -6,6 +6,16 @@ class User {
   final String role; // admin or worker
   final double wage;
   final String joinDate;
+  final double? workLocationLatitude; // GPS latitude of work location
+  final double? workLocationLongitude; // GPS longitude of work location
+  final String? workLocationAddress; // Human-readable address
+  final double? locationRadius; // Allowed radius in meters (default: 100)
+  final String? profilePhoto; // Path to profile photo
+  final String? idProof; // Path to ID proof
+  final String? address; // Full address
+  final String? email; // Email address
+  final bool? emailVerified; // Email verification status
+  final String? emailVerificationCode; // Temporary OTP code
 
   User({
     this.id,
@@ -15,7 +25,33 @@ class User {
     required this.role,
     required this.wage,
     required this.joinDate,
+    this.workLocationLatitude,
+    this.workLocationLongitude,
+    this.workLocationAddress,
+    this.locationRadius = 100.0,
+    this.profilePhoto,
+    this.idProof,
+    this.address,
+    this.email,
+    this.emailVerified = false,
+    this.emailVerificationCode,
   });
+
+  // Profile completion percentage
+  int get profileCompletionPercentage {
+    int totalFields = 10; // Updated total
+    int completedFields = 3; // name, phone, role always present
+    
+    if (profilePhoto != null && profilePhoto!.isNotEmpty) completedFields++;
+    if (idProof != null && idProof!.isNotEmpty) completedFields++;
+    if (address != null && address!.isNotEmpty) completedFields++;
+    if (email != null && email!.isNotEmpty) completedFields++;
+    if (emailVerified == true) completedFields++; // Bonus for verification
+    if (workLocationAddress != null && workLocationAddress!.isNotEmpty) completedFields++;
+    if (wage > 0) completedFields++;
+    
+    return ((completedFields / totalFields) * 100).round();
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -26,6 +62,16 @@ class User {
       'role': role,
       'wage': wage,
       'joinDate': joinDate,
+      'workLocationLatitude': workLocationLatitude,
+      'workLocationLongitude': workLocationLongitude,
+      'workLocationAddress': workLocationAddress,
+      'locationRadius': locationRadius,
+      'profilePhoto': profilePhoto,
+      'idProof': idProof,
+      'address': address,
+      'email': email,
+      'emailVerified': emailVerified == true ? 1 : 0,
+      'emailVerificationCode': emailVerificationCode,
     };
   }
 
@@ -38,6 +84,16 @@ class User {
       role: map['role'],
       wage: map['wage'],
       joinDate: map['joinDate'],
+      workLocationLatitude: map['workLocationLatitude'],
+      workLocationLongitude: map['workLocationLongitude'],
+      workLocationAddress: map['workLocationAddress'],
+      locationRadius: map['locationRadius'] ?? 100.0,
+      profilePhoto: map['profilePhoto'],
+      idProof: map['idProof'],
+      address: map['address'],
+      email: map['email'],
+      emailVerified: map['emailVerified'] == 1,
+      emailVerificationCode: map['emailVerificationCode'],
     );
   }
 
@@ -49,6 +105,16 @@ class User {
     String? role,
     double? wage,
     String? joinDate,
+    double? workLocationLatitude,
+    double? workLocationLongitude,
+    String? workLocationAddress,
+    double? locationRadius,
+    String? profilePhoto,
+    String? idProof,
+    String? address,
+    String? email,
+    bool? emailVerified,
+    String? emailVerificationCode,
   }) {
     return User(
       id: id ?? this.id,
@@ -58,6 +124,16 @@ class User {
       role: role ?? this.role,
       wage: wage ?? this.wage,
       joinDate: joinDate ?? this.joinDate,
+      workLocationLatitude: workLocationLatitude ?? this.workLocationLatitude,
+      workLocationLongitude: workLocationLongitude ?? this.workLocationLongitude,
+      workLocationAddress: workLocationAddress ?? this.workLocationAddress,
+      locationRadius: locationRadius ?? this.locationRadius,
+      profilePhoto: profilePhoto ?? this.profilePhoto,
+      idProof: idProof ?? this.idProof,
+      address: address ?? this.address,
+      email: email ?? this.email,
+      emailVerified: emailVerified ?? this.emailVerified,
+      emailVerificationCode: emailVerificationCode ?? this.emailVerificationCode,
     );
   }
 }

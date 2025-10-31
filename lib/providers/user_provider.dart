@@ -1,10 +1,13 @@
-import 'package:flutter/foundation.dart';
 import '../models/user.dart';
 import '../services/database_helper.dart';
 import 'base_provider.dart';
 
 class UserProvider extends BaseProvider {
   final DatabaseHelper _dbHelper = DatabaseHelper();
+  
+  UserProvider() {
+    print('UserProvider created');
+  }
   
   List<User> _workers = [];
   List<User> get workers => _workers;
@@ -19,6 +22,12 @@ class UserProvider extends BaseProvider {
       await _dbHelper.initDB(); // Ensure database is initialized
       _workers = await _dbHelper.getUsers();
       print('Workers loaded successfully. Count: ${_workers.length}');
+      
+      // Log each worker for debugging
+      for (var worker in _workers) {
+        print('Worker loaded: ID=${worker.id}, Name=${worker.name}, Phone=${worker.phone}, Role=${worker.role}');
+      }
+      
       setState(ViewState.idle);
       notifyListeners();
     } catch (e, stackTrace) {
@@ -50,16 +59,28 @@ class UserProvider extends BaseProvider {
   Future<bool> updateUser(User user) async {
     setState(ViewState.busy);
     try {
-      print('Updating user: ${user.name}');
+      print('Updating user: ${user.name} (ID: ${user.id})');
+      print('Profile photo: ${user.profilePhoto}');
+      print('Email: ${user.email}');
       await _dbHelper.initDB(); // Ensure database is initialized
       await _dbHelper.updateUser(user);
+      
+      // Update current user if this is the logged-in user
+      if (_currentUser != null && _currentUser!.id == user.id) {
+        _currentUser = user;
+        print('Current user updated in provider');
+      }
+      
       await loadWorkers();
       setState(ViewState.idle);
+      notifyListeners();
+      print('User update completed successfully');
       return true;
     } catch (e, stackTrace) {
       print('Error updating user: $e');
       print('Stack trace: $stackTrace');
       setState(ViewState.idle);
+      notifyListeners();
       return false;
     }
   }
@@ -118,7 +139,8 @@ class UserProvider extends BaseProvider {
   }
 
   void setCurrentUser(User user) {
-    print('Setting current user: ${user.name}');
+    print('Setting current user: ${user.name} (ID: ${user.id})');
+    print('User details: Phone=${user.phone}, Role=${user.role}, Email=${user.email}, Verified=${user.emailVerified}');
     _currentUser = user;
     notifyListeners();
   }

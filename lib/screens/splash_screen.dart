@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/session_manager.dart';
+import '../services/database_helper.dart';
+import '../providers/user_provider.dart';
 import 'login_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'worker_dashboard_screen.dart';
@@ -26,6 +29,12 @@ class _SplashScreenState extends State<SplashScreen> {
       await Future.delayed(const Duration(seconds: 2));
       print('Splash screen delay completed');
       
+      // Ensure database is initialized first
+      print('Initializing database...');
+      final dbHelper = DatabaseHelper();
+      await dbHelper.initDB();
+      print('Database initialized successfully');
+      
       SessionManager sessionManager = SessionManager();
       print('Checking if user is logged in...');
       bool isLoggedIn = await sessionManager.isLoggedIn();
@@ -43,17 +52,42 @@ class _SplashScreenState extends State<SplashScreen> {
           String userRole = await sessionManager.getUserRole();
           print('Logged in user ID: $userId, role: $userRole');
           
-          if (userRole == 'admin') {
-            print('Navigating to Admin Dashboard');
+          if (userId <= 0) {
+            print('Invalid user ID, navigating to login');
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
             );
+            return;
+          }
+          
+          // Load user from database and set in provider
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          final user = await dbHelper.getUser(userId);
+          
+          if (user != null) {
+            print('User loaded from database: ${user.name}');
+            userProvider.setCurrentUser(user);
+            
+            if (userRole == 'admin') {
+              print('Navigating to Admin Dashboard');
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+              );
+            } else {
+              print('Navigating to Worker Dashboard');
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const WorkerDashboardScreen()),
+              );
+            }
           } else {
-            print('Navigating to Worker Dashboard');
+            print('User not found in database, logging out');
+            await sessionManager.logout();
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const WorkerDashboardScreen()),
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
             );
           }
         } catch (e) {

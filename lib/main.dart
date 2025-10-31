@@ -6,20 +6,39 @@ import 'providers/user_provider.dart';
 import 'providers/attendance_provider.dart';
 import 'providers/advance_provider.dart';
 import 'providers/salary_provider.dart';
+import 'providers/login_status_provider.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  print('Initializing app...');
   // Initialize session manager
   await SessionManager().init();
   
+  print('Initializing providers...');
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => UserProvider()),
-        ChangeNotifierProvider(create: (_) => AttendanceProvider()),
-        ChangeNotifierProvider(create: (_) => AdvanceProvider()),
-        ChangeNotifierProvider(create: (_) => SalaryProvider()),
+        ChangeNotifierProvider(create: (_) {
+          print('Creating UserProvider');
+          return UserProvider();
+        }),
+        ChangeNotifierProvider(create: (_) {
+          print('Creating AttendanceProvider');
+          return AttendanceProvider();
+        }),
+        ChangeNotifierProvider(create: (_) {
+          print('Creating AdvanceProvider');
+          return AdvanceProvider();
+        }),
+        ChangeNotifierProvider(create: (_) {
+          print('Creating SalaryProvider');
+          return SalaryProvider();
+        }),
+        ChangeNotifierProvider(create: (_) {
+          print('Creating LoginStatusProvider');
+          return LoginStatusProvider();
+        }),
       ],
       child: const MyApp(),
     ),
