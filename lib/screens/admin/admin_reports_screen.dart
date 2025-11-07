@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../reports_screen.dart';
 
 class AdminReportsScreen extends StatelessWidget {
+  const AdminReportsScreen({super.key});
+// test1
   @override
   Widget build(BuildContext context) {
     return Padding(
