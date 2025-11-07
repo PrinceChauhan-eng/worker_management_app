@@ -22,6 +22,10 @@ class AdvanceProvider extends BaseProvider {
     notifyListeners();
   }
 
+  Future<List<Advance>> getAdvancesByWorkerIdAndMonth(int workerId, String month) async {
+    return await _dbHelper.getAdvancesByWorkerIdAndMonth(workerId, month);
+  }
+
   Future<double> getTotalAdvanceByWorkerId(int workerId) async {
     return await _dbHelper.getTotalAdvanceByWorkerId(workerId);
   }

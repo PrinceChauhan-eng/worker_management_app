@@ -16,6 +16,7 @@ class User {
   final String? email; // Email address
   final bool? emailVerified; // Email verification status
   final String? emailVerificationCode; // Temporary OTP code
+  final String? designation; // Worker's designation/role
 
   User({
     this.id,
@@ -35,11 +36,12 @@ class User {
     this.email,
     this.emailVerified = false,
     this.emailVerificationCode,
+    this.designation, // Add designation parameter
   });
 
   // Profile completion percentage
   int get profileCompletionPercentage {
-    int totalFields = 10; // Updated total
+    int totalFields = 11; // Updated total to include designation
     int completedFields = 3; // name, phone, role always present
     
     if (profilePhoto != null && profilePhoto!.isNotEmpty) completedFields++;
@@ -49,6 +51,7 @@ class User {
     if (emailVerified == true) completedFields++; // Bonus for verification
     if (workLocationAddress != null && workLocationAddress!.isNotEmpty) completedFields++;
     if (wage > 0) completedFields++;
+    if (designation != null && designation!.isNotEmpty) completedFields++; // Add designation
     
     return ((completedFields / totalFields) * 100).round();
   }
@@ -72,6 +75,7 @@ class User {
       'email': email,
       'emailVerified': emailVerified == true ? 1 : 0,
       'emailVerificationCode': emailVerificationCode,
+      'designation': designation, // Add designation to map
     };
   }
 
@@ -94,6 +98,7 @@ class User {
       email: map['email'],
       emailVerified: map['emailVerified'] == 1,
       emailVerificationCode: map['emailVerificationCode'],
+      designation: map['designation'], // Add designation from map
     );
   }
 
@@ -115,6 +120,7 @@ class User {
     String? email,
     bool? emailVerified,
     String? emailVerificationCode,
+    String? designation, // Add designation parameter
   }) {
     return User(
       id: id ?? this.id,
@@ -134,6 +140,7 @@ class User {
       email: email ?? this.email,
       emailVerified: emailVerified ?? this.emailVerified,
       emailVerificationCode: emailVerificationCode ?? this.emailVerificationCode,
+      designation: designation ?? this.designation, // Add designation parameter
     );
   }
 }

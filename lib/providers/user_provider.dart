@@ -150,4 +150,15 @@ class UserProvider extends BaseProvider {
     _currentUser = null;
     notifyListeners();
   }
+
+  Future<User?> getUser(int id) async {
+    try {
+      print('Getting user by ID: $id');
+      return await _dbHelper.getUser(id);
+    } catch (e, stackTrace) {
+      print('Error getting user by ID: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
 }

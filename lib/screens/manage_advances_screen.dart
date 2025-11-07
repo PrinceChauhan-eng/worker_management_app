@@ -198,6 +198,8 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
                             fontWeight: FontWeight.w600,
                             fontSize: 16,
                           ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                         const SizedBox(height: 3),
                         Text(
@@ -206,6 +208,8 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
                             fontSize: 13,
                             color: Colors.grey[600],
                           ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ],
                     ),
@@ -363,6 +367,8 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600,
               ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ),
         ],

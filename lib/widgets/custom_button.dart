@@ -35,7 +35,9 @@ class CustomButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 15),
+          padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
         ),
         child: isLoading
             ? const CircularProgressIndicator(
@@ -48,6 +50,7 @@ class CustomButton extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                   color: textColor ?? Colors.white,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
       ),
     );

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/login_status.dart';
 import '../models/user.dart';
 import '../services/database_helper.dart';
-import '../services/location_service.dart';
+// Removed location_service import since we're removing location features
 import 'package:intl/intl.dart';
 
 class LoginStatusProvider with ChangeNotifier {
@@ -47,47 +47,39 @@ class LoginStatusProvider with ChangeNotifier {
     }
   }
 
-  // Worker login with location verification
+  // Worker login without location verification
   Future<Map<String, dynamic>> workerLogin(User worker) async {
     try {
-      // Check if worker has work location set
-      if (worker.workLocationLatitude == null || worker.workLocationLongitude == null) {
-        return {
-          'success': false,
-          'message': 'Work location not set. Please contact admin.',
-        };
-      }
-
-      // Verify current location
-      Map<String, dynamic> locationResult = await LocationService.verifyLocation(
-        worker.workLocationLatitude!,
-        worker.workLocationLongitude!,
-        worker.locationRadius ?? 100.0,
-      );
-
-      if (!locationResult['success']) {
-        return {
-          'success': false,
-          'message': locationResult['message'],
-        };
-      }
-
-      // Create login status record
+      // Check if worker already has a login status for today
       String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      LoginStatus? existingStatus = await _dbHelper.getTodayLoginStatus(worker.id!, today);
+      
       String currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
-
-      LoginStatus loginStatus = LoginStatus(
-        workerId: worker.id!,
-        date: today,
-        loginTime: currentTime,
-        loginLatitude: locationResult['latitude'],
-        loginLongitude: locationResult['longitude'],
-        loginAddress: locationResult['address'],
-        loginDistance: locationResult['distance'],
-        isLoggedIn: true,
-      );
-
-      await _dbHelper.insertLoginStatus(loginStatus);
+      LoginStatus loginStatus;
+      
+      if (existingStatus != null) {
+        // Update existing login status
+        loginStatus = LoginStatus(
+          id: existingStatus.id,
+          workerId: worker.id!,
+          date: today,
+          loginTime: existingStatus.loginTime ?? currentTime,
+          logoutTime: existingStatus.logoutTime,
+          isLoggedIn: true,
+        );
+        
+        await _dbHelper.updateLoginStatus(loginStatus);
+      } else {
+        // Create new login status record
+        loginStatus = LoginStatus(
+          workerId: worker.id!,
+          date: today,
+          loginTime: currentTime,
+          isLoggedIn: true,
+        );
+        
+        await _dbHelper.insertLoginStatus(loginStatus);
+      }
       
       // Update local state
       _todayLoginStatus = loginStatus;
@@ -108,7 +100,7 @@ class LoginStatusProvider with ChangeNotifier {
     }
   }
 
-  // Worker logout with location verification
+  // Worker logout without location verification
   Future<Map<String, dynamic>> workerLogout(User worker) async {
     try {
       // Check if worker is logged in
@@ -122,26 +114,25 @@ class LoginStatusProvider with ChangeNotifier {
         };
       }
 
-      // Check if worker has work location set
-      if (worker.workLocationLatitude == null || worker.workLocationLongitude == null) {
-        return {
-          'success': false,
-          'message': 'Work location not set. Please contact admin.',
-        };
-      }
-
-      // Verify current location
-      Map<String, dynamic> locationResult = await LocationService.verifyLocation(
-        worker.workLocationLatitude!,
-        worker.workLocationLongitude!,
-        worker.locationRadius ?? 100.0,
-      );
-
-      if (!locationResult['success']) {
-        return {
-          'success': false,
-          'message': locationResult['message'],
-        };
+      // Check if 8 hours have passed since login
+      if (todayStatus.loginTime != null) {
+        try {
+          final loginTime = DateTime.parse('$today ${todayStatus.loginTime}');
+          final currentTime = DateTime.now();
+          final duration = currentTime.difference(loginTime);
+          final hoursWorked = duration.inMinutes / 60.0;
+          
+          if (hoursWorked < 8.0) {
+            final remainingHours = 8.0 - hoursWorked;
+            return {
+              'success': false,
+              'message': 'You must work at least 8 hours. ${remainingHours.toStringAsFixed(1)} hours remaining.',
+            };
+          }
+        } catch (e) {
+          print('Error calculating work duration: $e');
+          // If there's an error in calculation, we'll allow logout but log the error
+        }
       }
 
       // Update login status with logout information
@@ -153,14 +144,6 @@ class LoginStatusProvider with ChangeNotifier {
         date: today,
         loginTime: todayStatus.loginTime,
         logoutTime: currentTime,
-        loginLatitude: todayStatus.loginLatitude,
-        loginLongitude: todayStatus.loginLongitude,
-        loginAddress: todayStatus.loginAddress,
-        logoutLatitude: locationResult['latitude'],
-        logoutLongitude: locationResult['longitude'],
-        logoutAddress: locationResult['address'],
-        loginDistance: todayStatus.loginDistance,
-        logoutDistance: locationResult['distance'],
         isLoggedIn: false,
       );
 
@@ -171,9 +154,15 @@ class LoginStatusProvider with ChangeNotifier {
       _isLoggedIn = false;
       notifyListeners();
 
+      // Calculate and display working hours (capped at 8 hours for display)
+      double workingHours = updatedStatus.workingHours;
+      if (workingHours > 8.0) {
+        workingHours = 8.0;
+      }
+
       return {
         'success': true,
-        'message': 'Logout successful! Working hours: ${updatedStatus.workingHours.toStringAsFixed(2)} hrs',
+        'message': 'Logout successful! Working hours: ${workingHours.toStringAsFixed(2)} hrs',
         'loginStatus': updatedStatus,
       };
     } catch (e) {
@@ -182,6 +171,28 @@ class LoginStatusProvider with ChangeNotifier {
         'success': false,
         'message': 'Error during logout: $e',
       };
+    }
+  }
+
+  // Update login status (for admin editing)
+  Future<void> updateLoginStatus(LoginStatus loginStatus) async {
+    try {
+      await _dbHelper.updateLoginStatus(loginStatus);
+      
+      // Reload the login statuses to reflect the changes
+      await loadLoginStatusesByWorkerId(loginStatus.workerId);
+      
+      // Also update today's login status if this is for the current user
+      final today = DateTime.now().toString().split(' ')[0];
+      if (loginStatus.date == today) {
+        _todayLoginStatus = loginStatus;
+        _isLoggedIn = loginStatus.isLoggedIn;
+      }
+      
+      notifyListeners();
+    } catch (e) {
+      print('Error updating login status: $e');
+      rethrow;
     }
   }
 

@@ -7,11 +7,17 @@ import 'providers/attendance_provider.dart';
 import 'providers/advance_provider.dart';
 import 'providers/salary_provider.dart';
 import 'providers/login_status_provider.dart';
+import 'providers/notification_provider.dart';
+import 'services/notification_service.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   print('Initializing app...');
+  
+  // Initialize notification service
+  await NotificationService().init();
+  
   // Initialize session manager
   await SessionManager().init();
   
@@ -38,6 +44,10 @@ void main() async {
         ChangeNotifierProvider(create: (_) {
           print('Creating LoginStatusProvider');
           return LoginStatusProvider();
+        }),
+        ChangeNotifierProvider(create: (_) {
+          print('Creating NotificationProvider');
+          return NotificationProvider();
         }),
       ],
       child: const MyApp(),

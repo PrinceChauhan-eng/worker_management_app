@@ -7,6 +7,7 @@ import '../providers/login_status_provider.dart';
 import '../models/user.dart';
 import '../models/login_status.dart';
 import '../widgets/custom_app_bar.dart';
+import 'edit_attendance_screen.dart';
 
 class LoginStatusScreen extends StatefulWidget {
   const LoginStatusScreen({super.key});
@@ -107,20 +108,30 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
             ),
             const SizedBox(height: 30),
 
-            // Worker Selection
+            // Worker Selection with enhanced design
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey.shade300),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<User>(
                   isExpanded: true,
                   hint: Text(
                     'Select Worker',
-                    style: GoogleFonts.poppins(color: Colors.grey[600]),
+                    style: GoogleFonts.poppins(
+                      color: Colors.grey[600],
+                      fontSize: 16,
+                    ),
                   ),
                   value: _selectedWorker,
                   items: workers.map((worker) {
@@ -128,7 +139,9 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                       value: worker,
                       child: Text(
                         worker.name,
-                        style: GoogleFonts.poppins(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                        ),
                       ),
                     );
                   }).toList(),
@@ -138,12 +151,16 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                     });
                     _loadLoginStatuses();
                   },
+                  icon: const Icon(
+                    Icons.arrow_drop_down,
+                    color: Color(0xFF1E88E5),
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 20),
 
-            // Month Selection
+            // Month Selection with enhanced design
             if (_selectedWorker != null)
               Row(
                 children: [
@@ -152,8 +169,15 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey.shade300),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -165,22 +189,40 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          const Icon(Icons.calendar_today, color: Color(0xFF1E88E5)),
+                          const Icon(
+                            Icons.calendar_today, 
+                            color: Color(0xFF1E88E5),
+                          ),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: _selectMonth,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1E88E5),
-                      padding: const EdgeInsets.all(15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF1E88E5).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton(
+                      onPressed: _selectMonth,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E88E5),
+                        padding: const EdgeInsets.all(15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.edit_calendar, 
+                        color: Colors.white,
                       ),
                     ),
-                    child: const Icon(Icons.edit_calendar, color: Colors.white),
                   ),
                 ],
               ),
@@ -344,8 +386,7 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                   icon: Icons.login,
                   label: 'Login',
                   time: status.loginTime ?? '--:--',
-                  address: status.loginAddress,
-                  distance: status.loginDistance,
+                  // Removed address and distance since we're removing location features
                   color: Colors.green,
                 ),
                 if (hasLoggedOut) ...[
@@ -357,11 +398,42 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                     icon: Icons.logout,
                     label: 'Logout',
                     time: status.logoutTime ?? '--:--',
-                    address: status.logoutAddress,
-                    distance: status.logoutDistance,
+                    // Removed address and distance since we're removing location features
                     color: Colors.red,
                   ),
                 ],
+                const SizedBox(height: 15),
+                // Edit Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EditAttendanceScreen(
+                            loginStatus: status,
+                            workerName: _selectedWorker!.name,
+                          ),
+                        ),
+                      );
+                      
+                      // If attendance was updated, refresh the list
+                      if (result == true) {
+                        await _loadLoginStatuses();
+                      }
+                    },
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: Text(
+                      'Edit Attendance',
+                      style: GoogleFonts.poppins(),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E88E5),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -374,8 +446,7 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
     required IconData icon,
     required String label,
     required String time,
-    String? address,
-    double? distance,
+    // Removed address and distance parameters since we're removing location features
     required Color color,
   }) {
     return Column(
@@ -412,49 +483,10 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                 ),
               ],
             ),
-            const Spacer(),
-            if (distance != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: distance <= 100 ? Colors.green.shade50 : Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: distance <= 100 ? Colors.green : Colors.red,
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  '${distance.toStringAsFixed(0)}m',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: distance <= 100 ? Colors.green.shade700 : Colors.red.shade700,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+            // Removed distance display since we're removing location features
           ],
         ),
-        if (address != null) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  address,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ],
+        // Removed address display since we're removing location features
       ],
     );
   }

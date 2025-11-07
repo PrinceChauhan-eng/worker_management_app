@@ -514,13 +514,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 15),
 
               // Work Location
-              if (user.workLocationAddress != null)
-                _buildInfoCard(
-                  icon: Icons.location_on,
-                  label: 'Work Location',
-                  value: user.workLocationAddress!,
-                  isEditable: false,
-                ),
               const SizedBox(height: 20),
 
               // ID Proof Section

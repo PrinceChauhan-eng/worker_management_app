@@ -10,6 +10,7 @@ import '../models/attendance.dart';
 import '../models/advance.dart';
 import '../models/salary.dart';
 import '../models/login_status.dart';
+import '../models/notification.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -85,7 +86,18 @@ class DatabaseHelper {
           password TEXT,
           role TEXT,
           wage REAL,
-          joinDate TEXT
+          joinDate TEXT,
+          workLocationLatitude REAL,
+          workLocationLongitude REAL,
+          workLocationAddress TEXT,
+          locationRadius REAL DEFAULT 100.0,
+          profilePhoto TEXT,
+          idProof TEXT,
+          address TEXT,
+          email TEXT,
+          emailVerified INTEGER DEFAULT 0,
+          emailVerificationCode TEXT,
+          designation TEXT
         )
       ''');
       print('Users table created');
@@ -135,15 +147,7 @@ class DatabaseHelper {
           date TEXT,
           loginTime TEXT,
           logoutTime TEXT,
-          loginLatitude REAL,
-          loginLongitude REAL,
-          loginAddress TEXT,
-          logoutLatitude REAL,
-          logoutLongitude REAL,
-          logoutAddress TEXT,
-          isLoggedIn INTEGER DEFAULT 0,
-          loginDistance REAL,
-          logoutDistance REAL
+          isLoggedIn INTEGER DEFAULT 0
         )
       ''');
       print('Login status table created');
@@ -164,6 +168,22 @@ class DatabaseHelper {
       ''');
       print('Login history table created');
 
+      // Create notifications table
+      await db.execute('''
+        CREATE TABLE notifications (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT,
+          message TEXT,
+          type TEXT,
+          userId INTEGER,
+          userRole TEXT,
+          isRead INTEGER DEFAULT 0,
+          createdAt TEXT,
+          relatedId TEXT
+        )
+      ''');
+      print('Notifications table created');
+
       // Insert default admin user with the correct phone number from project memory
       print('Inserting default admin user...');
       await db.insert('users', {
@@ -173,6 +193,7 @@ class DatabaseHelper {
         'role': 'admin',
         'wage': 0.0,
         'joinDate': DateTime.now().toString(),
+        'designation': 'System Administrator', // Add designation for admin
       });
       print('Default admin user inserted successfully');
       
@@ -389,6 +410,7 @@ class DatabaseHelper {
             'role': 'admin',
             'wage': 0.0,
             'joinDate': DateTime.now().toString(),
+            'designation': 'System Administrator', // Add designation for admin
           });
           print('Default admin user created successfully');
         } else {
@@ -429,21 +451,9 @@ class DatabaseHelper {
           await db.execute('ALTER TABLE users ADD COLUMN emailVerificationCode TEXT');
           print('Added emailVerificationCode column to users table');
         }
-        if (!columnNames.contains('workLocationLatitude')) {
-          await db.execute('ALTER TABLE users ADD COLUMN workLocationLatitude REAL');
-          print('Added workLocationLatitude column to users table');
-        }
-        if (!columnNames.contains('workLocationLongitude')) {
-          await db.execute('ALTER TABLE users ADD COLUMN workLocationLongitude REAL');
-          print('Added workLocationLongitude column to users table');
-        }
-        if (!columnNames.contains('workLocationAddress')) {
-          await db.execute('ALTER TABLE users ADD COLUMN workLocationAddress TEXT');
-          print('Added workLocationAddress column to users table');
-        }
-        if (!columnNames.contains('locationRadius')) {
-          await db.execute('ALTER TABLE users ADD COLUMN locationRadius REAL DEFAULT 100.0');
-          print('Added locationRadius column to users table');
+        if (!columnNames.contains('designation')) {
+          await db.execute('ALTER TABLE users ADD COLUMN designation TEXT');
+          print('Added designation column to users table');
         }
       } catch (e) {
         print('Error checking/adding columns to users table: $e');
@@ -523,6 +533,34 @@ class DatabaseHelper {
         print('Error checking/adding columns to salary table: $e');
       }
       
+      // Verify notifications table exists, create if missing
+      try {
+        var tableExists = await db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='notifications'"
+        );
+        if (tableExists.isEmpty) {
+          print('Notifications table not found, creating...');
+          await db.execute('''
+            CREATE TABLE notifications (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              title TEXT,
+              message TEXT,
+              type TEXT,
+              userId INTEGER,
+              userRole TEXT,
+              isRead INTEGER DEFAULT 0,
+              createdAt TEXT,
+              relatedId TEXT
+            )
+          ''');
+          print('Notifications table created successfully');
+        } else {
+          print('Notifications table already exists');
+        }
+      } catch (e) {
+        print('Error checking/creating notifications table: $e');
+      }
+      
       // Debug: Check what users exist in the database
       try {
         var allUsers = await db.query('users');
@@ -571,6 +609,12 @@ class DatabaseHelper {
       var client = await db;
       var results = await client.query('users');
       print('Found ${results.length} users');
+      
+      // Debug: Print all users
+      for (var result in results) {
+        print('User in DB: ID=${result['id']}, Name=${result['name']}, Phone=${result['phone']}, Role=${result['role']}');
+      }
+      
       return results.map((map) => User.fromMap(map)).toList();
     } catch (e, stackTrace) {
       print('Error getting users: $e');
@@ -773,6 +817,24 @@ class DatabaseHelper {
     }
   }
 
+  Future<List<Advance>> getAdvancesByWorkerIdAndMonth(int workerId, String month) async {
+    try {
+      print('Getting advances for worker ID: $workerId and month: $month');
+      var client = await db;
+      var results = await client.query(
+        'advance', 
+        where: 'workerId = ? AND date LIKE ?', 
+        whereArgs: [workerId, '$month%']
+      );
+      print('Found ${results.length} advances for worker ID: $workerId and month: $month');
+      return results.map((map) => Advance.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting advances by worker ID and month: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
   Future<double> getTotalAdvanceByWorkerId(int workerId) async {
     try {
       print('Getting total advance for worker ID: $workerId');
@@ -846,6 +908,38 @@ class DatabaseHelper {
       return results.map((map) => Salary.fromMap(map)).toList();
     } catch (e, stackTrace) {
       print('Error getting salaries: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<Salary>> getPaidSalaries() async {
+    try {
+      print('Getting paid salaries...');
+      var client = await db;
+      var results = await client.query('salary', where: 'paid = ?', whereArgs: [1]);
+      print('Found ${results.length} paid salaries');
+      return results.map((map) => Salary.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting paid salaries: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<Salary>> getPaidSalariesByMonth(String month) async {
+    try {
+      print('Getting paid salaries for month: $month');
+      var client = await db;
+      var results = await client.query(
+        'salary',
+        where: 'paid = ? AND month = ?',
+        whereArgs: [1, month],
+      );
+      print('Found ${results.length} paid salaries for month: $month');
+      return results.map((map) => Salary.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting paid salaries by month: $e');
       print('Stack trace: $stackTrace');
       rethrow;
     }
@@ -1020,6 +1114,156 @@ class DatabaseHelper {
       return await client.insert('login_history', loginHistory);
     } catch (e, stackTrace) {
       print('Error inserting login history: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  // Notification methods
+  Future<int> insertNotification(NotificationModel notification) async {
+    try {
+      print('Inserting notification: ${notification.title}');
+      var client = await db;
+      return await client.insert('notifications', notification.toMap());
+    } catch (e, stackTrace) {
+      print('Error inserting notification: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<NotificationModel>> getNotifications() async {
+    try {
+      print('Getting all notifications...');
+      var client = await db;
+      var results = await client.query('notifications', orderBy: 'createdAt DESC');
+      print('Found ${results.length} notifications');
+      return results.map((map) => NotificationModel.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting notifications: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<NotificationModel>> getNotificationsByUser(int userId, String userRole) async {
+    try {
+      print('Getting notifications for user ID: $userId, role: $userRole');
+      var client = await db;
+      var results = await client.query(
+        'notifications',
+        where: 'userId = ? AND userRole = ?',
+        whereArgs: [userId, userRole],
+        orderBy: 'createdAt DESC',
+      );
+      print('Found ${results.length} notifications for user ID: $userId');
+      return results.map((map) => NotificationModel.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting notifications by user: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<NotificationModel>> getUnreadNotificationsByUser(int userId, String userRole) async {
+    try {
+      print('Getting unread notifications for user ID: $userId, role: $userRole');
+      var client = await db;
+      var results = await client.query(
+        'notifications',
+        where: 'userId = ? AND userRole = ? AND isRead = ?',
+        whereArgs: [userId, userRole, 0],
+        orderBy: 'createdAt DESC',
+      );
+      print('Found ${results.length} unread notifications for user ID: $userId');
+      return results.map((map) => NotificationModel.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting unread notifications by user: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<int> updateNotification(NotificationModel notification) async {
+    try {
+      print('Updating notification ID: ${notification.id}');
+      var client = await db;
+      return await client.update(
+        'notifications',
+        notification.toMap(),
+        where: 'id = ?',
+        whereArgs: [notification.id],
+      );
+    } catch (e, stackTrace) {
+      print('Error updating notification: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<int> markNotificationAsRead(int notificationId) async {
+    try {
+      print('Marking notification ID: $notificationId as read');
+      var client = await db;
+      return await client.update(
+        'notifications',
+        {'isRead': 1},
+        where: 'id = ?',
+        whereArgs: [notificationId],
+      );
+    } catch (e, stackTrace) {
+      print('Error marking notification as read: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<int> markAllNotificationsAsRead(int userId, String userRole) async {
+    try {
+      print('Marking all notifications as read for user ID: $userId, role: $userRole');
+      var client = await db;
+      return await client.update(
+        'notifications',
+        {'isRead': 1},
+        where: 'userId = ? AND userRole = ?',
+        whereArgs: [userId, userRole],
+      );
+    } catch (e, stackTrace) {
+      print('Error marking all notifications as read: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<int> getUnreadNotificationCount(int userId, String userRole) async {
+    try {
+      print('Getting unread notification count for user ID: $userId, role: $userRole');
+      var client = await db;
+      var results = await client.query(
+        'notifications',
+        columns: ['COUNT(*) as count'],
+        where: 'userId = ? AND userRole = ? AND isRead = ?',
+        whereArgs: [userId, userRole, 0],
+      );
+      
+      if (results.isNotEmpty) {
+        return results.first['count'] as int;
+      }
+      return 0;
+    } catch (e, stackTrace) {
+      print('Error getting unread notification count: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<int> deleteNotification(int id) async {
+    try {
+      print('Deleting notification ID: $id');
+      var client = await db;
+      return await client.delete('notifications', where: 'id = ?', whereArgs: [id]);
+    } catch (e, stackTrace) {
+      print('Error deleting notification: $e');
       print('Stack trace: $stackTrace');
       rethrow;
     }

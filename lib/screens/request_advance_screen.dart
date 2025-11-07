@@ -4,8 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 import '../models/advance.dart';
+import '../models/notification.dart';
 import '../providers/user_provider.dart';
 import '../providers/advance_provider.dart';
+import '../providers/notification_provider.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
@@ -58,6 +60,7 @@ class _RequestAdvanceScreenState extends State<RequestAdvanceScreen> {
 
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final advanceProvider = Provider.of<AdvanceProvider>(context, listen: false);
+      final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
       
       final advance = Advance(
         workerId: userProvider.currentUser!.id!,
@@ -75,6 +78,20 @@ class _RequestAdvanceScreenState extends State<RequestAdvanceScreen> {
       });
 
       if (success) {
+        // Send notification to admin
+        final adminNotification = NotificationModel(
+          title: 'New Advance Request',
+          message: '${userProvider.currentUser!.name} has requested an advance of ₹${_amountController.text} for $_selectedPurpose',
+          type: 'advance',
+          userId: 0, // Admin user ID (we'll use 0 for admin notifications)
+          userRole: 'admin',
+          isRead: false,
+          createdAt: DateTime.now().toIso8601String(),
+          relatedId: advance.id?.toString(),
+        );
+        
+        await notificationProvider.addNotification(adminNotification);
+        
         Fluttertoast.showToast(
           msg: 'Advance request submitted successfully!',
           backgroundColor: Colors.green,

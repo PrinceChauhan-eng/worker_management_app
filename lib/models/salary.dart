@@ -12,6 +12,7 @@ class Salary {
   final double totalSalary; // For backward compatibility
   final bool paid;
   final String? paidDate;
+  final String? pdfUrl;
 
   Salary({
     this.id,
@@ -27,6 +28,7 @@ class Salary {
     double? totalSalary,
     required this.paid,
     this.paidDate,
+    this.pdfUrl,
   }) : totalSalary = totalSalary ?? netSalary ?? 0.0;
 
   Map<String, dynamic> toMap() {
@@ -44,6 +46,7 @@ class Salary {
       'totalSalary': totalSalary,
       'paid': paid ? 1 : 0,
       'paidDate': paidDate,
+      'pdfUrl': pdfUrl,
     };
   }
 
@@ -62,6 +65,7 @@ class Salary {
       totalSalary: map['totalSalary'],
       paid: map['paid'] == 1,
       paidDate: map['paidDate'],
+      pdfUrl: map['pdfUrl'],
     );
   }
 }

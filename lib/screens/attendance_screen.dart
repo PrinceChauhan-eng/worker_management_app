@@ -232,6 +232,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
                                       ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
                                     ),
                                     Text(
                                       worker.phone,
@@ -239,6 +241,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                         fontSize: 14,
                                         color: Colors.grey[600],
                                       ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
                                     ),
                                   ],
                                 ),

@@ -26,6 +26,14 @@ class SalaryProvider extends BaseProvider {
     return await _dbHelper.getSalaryByWorkerIdAndMonth(workerId, month);
   }
 
+  Future<List<Salary>> getPaidSalaries() async {
+    return await _dbHelper.getPaidSalaries();
+  }
+
+  Future<List<Salary>> getPaidSalariesByMonth(String month) async {
+    return await _dbHelper.getPaidSalariesByMonth(month);
+  }
+
   Future<bool> addSalary(Salary salary) async {
     setState(ViewState.busy);
     try {

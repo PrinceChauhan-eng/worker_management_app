@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../models/user.dart';
-import '../models/advance.dart';
 import '../models/salary.dart';
+import '../models/advance.dart';
+import '../models/notification.dart';
 import '../providers/user_provider.dart';
-import '../providers/advance_provider.dart';
 import '../providers/salary_provider.dart';
+import '../providers/advance_provider.dart';
 import '../providers/login_status_provider.dart';
+import '../providers/notification_provider.dart';
+import '../services/notification_service.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_button.dart';
+import '../widgets/salary_slip_dialog.dart';
 
 class ProcessSalaryScreen extends StatefulWidget {
   const ProcessSalaryScreen({super.key});
@@ -23,9 +27,9 @@ class ProcessSalaryScreen extends StatefulWidget {
 class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
   User? _selectedWorker;
   String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now());
-  bool _isLoading = false;
   bool _isCalculating = false;
-  
+  bool _isLoading = false;
+
   // Calculation results
   int? _totalDays;
   int? _presentDays;
@@ -38,12 +42,6 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    await userProvider.loadWorkers();
   }
 
   Future<void> _selectMonth() async {
@@ -153,6 +151,418 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
     }
   }
 
+  Future<void> _showSalaryPreview() async {
+    if (_netSalary == null) {
+      Fluttertoast.showToast(
+        msg: 'Please calculate salary first',
+        backgroundColor: Colors.red,
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        builder: (context, scrollController) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Salary Preview',
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                
+                // Worker Info
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedWorker!.name,
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Month: ${DateFormat('MMMM yyyy').format(DateTime.parse('$_selectedMonth-01'))}',
+                        style: GoogleFonts.poppins(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // Salary Breakdown
+                Text(
+                  'Earnings',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _buildPreviewItem('Present Days', '$_presentDays days'),
+                _buildPreviewItem('Daily Wage', '₹${_selectedWorker!.wage.toStringAsFixed(2)}'),
+                _buildPreviewItem('Gross Salary', '₹${_grossSalary!.toStringAsFixed(2)}', isBold: true),
+                
+                const SizedBox(height: 20),
+                Text(
+                  'Deductions',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                
+                if (_approvedAdvances.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      'No advances taken this month',
+                      style: GoogleFonts.poppins(
+                        color: Colors.grey[600],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  )
+                else ...[
+                  ..._approvedAdvances.map((adv) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                adv.purpose ?? 'Advance',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              if (adv.note != null && adv.note!.isNotEmpty)
+                                Text(
+                                  adv.note!,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '₹${adv.amount.toStringAsFixed(2)}',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+                  const Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Total Advances',
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Text(
+                        '₹${_totalAdvance!.toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                
+                const SizedBox(height: 20),
+                
+                // Net Salary with enhanced styling
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: _netSalary! >= 0
+                          ? [Colors.green.shade400, Colors.green.shade600]
+                          : [Colors.red.shade400, Colors.red.shade600],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Net Salary',
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '₹${_netSalary!.toStringAsFixed(2)}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (_netSalary! < 0) ...[
+                  const SizedBox(height: 15),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber, color: Colors.red.shade700),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Negative balance of ₹${(-_netSalary!).toStringAsFixed(2)} will be carried forward to next month',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.red.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                
+                const SizedBox(height: 30),
+                
+                // Action Buttons with fixed layout
+                SizedBox(
+                  width: double.infinity,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 45,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: SizedBox(
+                          height: 45,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _actuallyProcessSalary();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF4CAF50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                            ),
+                            child: Text(
+                              'Process',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Preview Options Button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _showPreviewOptions();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      side: const BorderSide(color: Color(0xFF1E88E5)),
+                    ),
+                    child: Text(
+                      'Preview Options',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E88E5),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // Show preview options dialog with send and download functionality
+  Future<void> _showPreviewOptions() async {
+    // Create a temporary salary object for preview
+    final previewSalary = Salary(
+      workerId: _selectedWorker!.id!,
+      month: DateFormat('MMMM').format(DateTime.parse('$_selectedMonth-01')),
+      year: _selectedMonth.split('-')[0],
+      totalDays: _totalDays ?? 0,
+      presentDays: _presentDays ?? 0,
+      absentDays: _absentDays ?? 0,
+      grossSalary: _grossSalary ?? 0.0,
+      totalAdvance: _totalAdvance ?? 0.0,
+      netSalary: _netSalary ?? 0.0,
+      paid: false,
+      paidDate: null,
+    );
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            'Salary Preview Options',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'What would you like to do with this salary preview for ${_selectedWorker!.name}?',
+            style: GoogleFonts.poppins(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Close',
+                style: GoogleFonts.poppins(),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // Show detailed preview with options
+                _showDetailedPreview(previewSalary, _approvedAdvances);
+              },
+              child: Text(
+                'View Details',
+                style: GoogleFonts.poppins(),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Show detailed preview with send and download options
+  Future<void> _showDetailedPreview(Salary salary, List<Advance> advances) async {
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return SalarySlipDialog(
+          salary: salary,
+          worker: _selectedWorker!,
+          advances: advances,
+        );
+      },
+    );
+  }
+
+  Widget _buildPreviewItem(String label, String value, {bool isBold = false, bool isNegative = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              color: isNegative ? Colors.red : (isBold ? Colors.black : Colors.grey[700]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _processSalary() async {
     if (_netSalary == null) {
       Fluttertoast.showToast(
@@ -162,6 +572,11 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
       return;
     }
 
+    // Show preview first
+    _showSalaryPreview();
+  }
+
+  Future<void> _actuallyProcessSalary() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -251,7 +666,7 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
           grossSalary: _grossSalary!,
           totalAdvance: _totalAdvance!,
           netSalary: _netSalary!,
-          paid: false,
+          paid: true, // Mark as paid when processed
           paidDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
         );
 
@@ -259,6 +674,15 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
         final success = await salaryProvider.addSalary(salary);
 
         if (success) {
+          // Reload salaries to get the ID of the newly created salary
+          await salaryProvider.loadSalaries();
+          final savedSalary = salaryProvider.salaries.firstWhere(
+            (s) => s.workerId == salary.workerId && 
+                   s.month == salary.month && 
+                   s.year == salary.year,
+            orElse: () => salary,
+          );
+          
           // Mark advances as deducted
           for (var advance in _approvedAdvances) {
             final updatedAdvance = Advance(
@@ -271,7 +695,7 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
               status: 'deducted',
               approvedBy: advance.approvedBy,
               approvedDate: advance.approvedDate,
-              deductedFromSalaryId: salary.id,
+              deductedFromSalaryId: savedSalary.id,
             );
             await advanceProvider.updateAdvance(updatedAdvance);
           }
@@ -280,10 +704,11 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
             _isLoading = false;
           });
 
-          Fluttertoast.showToast(
-            msg: 'Salary processed successfully!',
-            backgroundColor: Colors.green,
-          );
+          // Show salary slip dialog with send and download options
+          _showSalarySlipDialog(savedSalary, _approvedAdvances);
+
+          // Send notifications
+          _sendSalaryNotifications(savedSalary);
 
           // Reset form
           setState(() {
@@ -310,6 +735,88 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
           backgroundColor: Colors.red,
         );
       }
+    }
+  }
+
+  // Show salary slip dialog with send and download options
+  Future<void> _showSalarySlipDialog(Salary salary, List<Advance> advances) async {
+    // Get worker details
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final worker = await userProvider.getUser(salary.workerId);
+    
+    if (worker == null) {
+      Fluttertoast.showToast(
+        msg: 'Failed to load worker details',
+        backgroundColor: Colors.red,
+      );
+      return;
+    }
+    
+    // Show the salary slip dialog with send and download options
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return SalarySlipDialog(
+          salary: salary,
+          worker: worker,
+          advances: advances,
+        );
+      },
+    );
+  }
+
+  // Show detailed salary slip with send and download options
+  Future<void> _showDetailedSalarySlip(Salary salary, User worker, List<Advance> advances) async {
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return SalarySlipDialog(
+          salary: salary,
+          worker: worker,
+          advances: advances,
+        );
+      },
+    );
+  }
+
+  // Generate and send salary slip to worker
+  Future<void> _generateAndSendSalarySlip(Salary salary) async {
+    try {
+      // In a real app, this would send an email or WhatsApp message
+      // For now, we'll just show a success message
+      print('Salary slip generated for worker ID: ${salary.workerId}');
+      if (salary.netSalary != null) {
+        print('Net Salary: ₹${salary.netSalary!.toStringAsFixed(2)}');
+      }
+      
+      // You could implement email or WhatsApp integration here
+      // For example, using the existing WhatsApp service:
+      /*
+      final whatsappService = WhatsAppService();
+      final worker = await Provider.of<UserProvider>(context, listen: false)
+          .getUser(salary.workerId);
+      
+      if (worker != null) {
+        final message = '''
+Salary Slip
+------------
+Worker: ${worker.name}
+Month: ${salary.month} ${salary.year}
+Present Days: ${salary.presentDays}/${salary.totalDays}
+Gross Salary: ₹${salary.grossSalary.toStringAsFixed(2)}
+Advances Deducted: ₹${salary.totalAdvance.toStringAsFixed(2)}
+Net Salary: ₹${salary.netSalary.toStringAsFixed(2)}
+Paid Date: ${salary.paidDate}
+        ''';
+        
+        // Show instructions for sending via WhatsApp
+        // In a real implementation, you would use:
+        // await whatsappService.sendOTP(worker.phone, context);
+      }
+      */
+    } catch (e) {
+      print('Error generating salary slip: $e');
+      rethrow;
     }
   }
 
@@ -349,323 +856,422 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
         title: 'Process Salary',
         onLeadingPressed: () => Navigator.pop(context),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Calculate & Process Salary',
-              style: GoogleFonts.poppins(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E88E5),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight - Scaffold.of(context).appBarMaxHeight! - 40,
               ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Automatically deducts approved advances from salary',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 30),
-
-            // Worker Selection
-            Text(
-              'Select Worker',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<User>(
-                  isExpanded: true,
-                  hint: Text(
-                    'Select Worker',
-                    style: GoogleFonts.poppins(color: Colors.grey[600]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Calculate & Process Salary',
+                    style: GoogleFonts.poppins(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1E88E5),
+                    ),
                   ),
-                  value: _selectedWorker,
-                  items: workers.map((worker) {
-                    return DropdownMenuItem<User>(
-                      value: worker,
-                      child: Text(
-                        '${worker.name} (₹${worker.wage}/day)',
-                        style: GoogleFonts.poppins(),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (worker) {
-                    setState(() {
-                      _selectedWorker = worker;
-                      _resetCalculation();
-                    });
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Automatically deducts approved advances from salary',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 30),
 
-            // Month Selection
-            Text(
-              'Select Month',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(15),
+                  // Worker Selection
+                  Text(
+                    'Select Worker',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: Colors.grey.shade300),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          DateFormat('MMMM yyyy').format(DateTime.parse('$_selectedMonth-01')),
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<User>(
+                        isExpanded: true,
+                        hint: Text(
+                          'Select Worker',
+                          style: GoogleFonts.poppins(color: Colors.grey[600]),
                         ),
-                        const Icon(Icons.calendar_month, color: Color(0xFF1E88E5)),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _selectMonth,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E88E5),
-                    padding: const EdgeInsets.all(15),
-                  ),
-                  child: const Icon(Icons.edit_calendar),
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
-
-            // Calculate Button
-            CustomButton(
-              text: 'Calculate Salary',
-              onPressed: _calculateSalary,
-              isLoading: _isCalculating,
-            ),
-            const SizedBox(height: 30),
-
-            // Calculation Results
-            if (_grossSalary != null) ...[
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.calculate, color: const Color(0xFF1E88E5)),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Salary Calculation',
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Attendance Summary
-                    Container(
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(10),
+                        value: _selectedWorker,
+                        items: workers.map((worker) {
+                          return DropdownMenuItem<User>(
+                            value: worker,
+                            child: Text(
+                              '${worker.name} (₹${worker.wage.toStringAsFixed(2)}/day)',
+                              style: GoogleFonts.poppins(),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (worker) {
+                          if (worker != null) {
+                            setState(() {
+                              _selectedWorker = worker;
+                              _resetCalculation();
+                            });
+                          }
+                        },
                       ),
-                      child: Column(
-                        children: [
-                          _buildInfoRow('Total Days', '$_totalDays days', Icons.calendar_today),
-                          _buildInfoRow('Present Days', '$_presentDays days', Icons.check_circle, Colors.green),
-                          _buildInfoRow('Absent Days', '$_absentDays days', Icons.cancel, Colors.red),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Month Selection
+                  Text(
+                    'Select Month',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(15),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  DateFormat('MMMM yyyy').format(DateTime.parse('$_selectedMonth-01')),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              const Icon(Icons.calendar_month, color: Color(0xFF1E88E5)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      ElevatedButton(
+                        onPressed: _selectMonth,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1E88E5),
+                          padding: const EdgeInsets.all(15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Icon(Icons.edit_calendar, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+
+                  // Calculate Button
+                  CustomButton(
+                    text: 'Calculate Salary',
+                    onPressed: _isCalculating ? () {} : _calculateSalary,
+                    isLoading: _isCalculating,
+                  ),
+                  const SizedBox(height: 30),
+
+                  // Results Section
+                  if (_netSalary != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Salary Summary',
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
 
-                    // Salary Breakdown
-                    _buildSummaryRow('Daily Wage', '₹${_selectedWorker!.wage.toStringAsFixed(2)}'),
-                    _buildSummaryRow('Working Days', '$_presentDays days'),
-                    const Divider(height: 30),
-                    _buildSummaryRow('Gross Salary', '₹${_grossSalary!.toStringAsFixed(2)}', isTotal: true),
-                    
-                    const SizedBox(height: 20),
+                          // Attendance Info
+                          Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: _buildInfoRow(
+                                        'Total Days',
+                                        '$_totalDays',
+                                        Icons.calendar_today,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: _buildInfoRow(
+                                        'Present',
+                                        '$_presentDays',
+                                        Icons.check_circle,
+                                        Colors.green,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: _buildInfoRow(
+                                        'Absent',
+                                        '$_absentDays',
+                                        Icons.cancel,
+                                        Colors.red,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
 
-                    // Advances Section
-                    if (_approvedAdvances.isNotEmpty) ...[
-                      Text(
-                        'Approved Advances (${_approvedAdvances.length})',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          children: [
-                            ..._approvedAdvances.map((adv) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${adv.purpose ?? "Advance"} - ${DateFormat('dd MMM').format(DateTime.parse(adv.date))}',
-                                      style: GoogleFonts.poppins(fontSize: 13),
-                                    ),
-                                  ),
-                                  Text(
-                                    '₹${adv.amount.toStringAsFixed(2)}',
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.orange.shade700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )),
-                            const Divider(),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          // Salary Breakdown
+                          Text(
+                            'Breakdown',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 15),
+
+                          // Earnings
+                          Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Total Advances',
-                                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+                                  'Earnings',
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green.shade700,
+                                  ),
                                 ),
+                                const SizedBox(height: 10),
+                                _buildInfoRow(
+                                  'Gross Salary ($_presentDays days × ₹${_selectedWorker?.wage.toStringAsFixed(2)})',
+                                  '₹${_grossSalary!.toStringAsFixed(2)}',
+                                  Icons.payments,
+                                  Colors.green,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 15),
+
+                          // Deductions
+                          Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Text(
-                                  '₹${_totalAdvance!.toStringAsFixed(2)}',
+                                  'Deductions',
                                   style: GoogleFonts.poppins(
                                     fontWeight: FontWeight.bold,
                                     color: Colors.orange.shade700,
                                   ),
                                 ),
+                                const SizedBox(height: 10),
+                                if (_approvedAdvances.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Text(
+                                      'No advances taken this month',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.grey[600],
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  )
+                                else ...[
+                                  ..._approvedAdvances.map((adv) => Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                adv.purpose ?? 'Advance',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              if (adv.note != null && adv.note!.isNotEmpty)
+                                                Text(
+                                                  adv.note!,
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 11,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        Text(
+                                          '₹${adv.amount.toStringAsFixed(2)}',
+                                          style: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.orange.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )),
+                                  const Divider(),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Total Advances',
+                                          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                      Text(
+                                        '₹${_totalAdvance!.toStringAsFixed(2)}',
+                                        style: GoogleFonts.poppins(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // Net Salary
-                    Container(
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: _netSalary! >= 0
-                              ? [Colors.green.shade400, Colors.green.shade600]
-                              : [Colors.red.shade400, Colors.red.shade600],
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Net Salary',
-                            style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
                           ),
-                          Text(
-                            '₹${_netSalary!.toStringAsFixed(2)}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                          const SizedBox(height: 20),
 
-                    if (_netSalary! < 0) ...[
-                      const SizedBox(height: 15),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.warning_amber, color: Colors.red.shade700),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Negative balance of ₹${(-_netSalary!).toStringAsFixed(2)} will be carried forward to next month',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: Colors.red.shade700,
+                          // Net Salary
+                          Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: _netSalary! >= 0
+                                    ? [Colors.green.shade400, Colors.green.shade600]
+                                    : [Colors.red.shade400, Colors.red.shade600],
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Net Salary',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                                 ),
+                                Text(
+                                  '₹${_netSalary!.toStringAsFixed(2)}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          if (_netSalary! < 0) ...[
+                            const SizedBox(height: 15),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.red.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.warning_amber, color: Colors.red.shade700),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Negative balance of ₹${(-_netSalary!).toStringAsFixed(2)} will be carried forward to next month',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        color: Colors.red.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
+                    ),
+                    const SizedBox(height: 30),
 
-              // Process Button
-              CustomButton(
-                text: 'Process & Save Salary',
-                onPressed: _processSalary,
-                isLoading: _isLoading,
+                    // Process Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: CustomButton(
+                        text: 'Process & Save Salary',
+                        onPressed: _processSalary,
+                        isLoading: _isLoading,
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ],
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -693,5 +1299,51 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
         ],
       ),
     );
+  }
+
+  // Send notifications for salary processing
+  Future<void> _sendSalaryNotifications(Salary salary) async {
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+      final notificationService = NotificationService();
+      
+      // Get worker details
+      final worker = await userProvider.getUser(salary.workerId);
+      
+      if (worker != null) {
+        // Create notification for worker
+        final workerNotification = NotificationModel(
+          title: 'Salary Processed',
+          message: 'Your salary for ${salary.month} ${salary.year} has been processed. Net Salary: ₹${salary.netSalary?.toStringAsFixed(2) ?? '0.00'}. Paid Date: ${salary.paidDate}',
+          type: 'salary',
+          userId: worker.id!,
+          userRole: 'worker',
+          isRead: false,
+          createdAt: DateTime.now().toIso8601String(),
+          relatedId: salary.id?.toString(),
+        );
+        
+        // Save notification to database and show local notification
+        await notificationProvider.addNotification(workerNotification);
+        
+        // Create notification for admin
+        final adminNotification = NotificationModel(
+          title: 'Salary Processed',
+          message: 'Salary processed for worker ${worker.name}. Net Salary: ₹${salary.netSalary?.toStringAsFixed(2) ?? '0.00'}. Month: ${salary.month} ${salary.year}',
+          type: 'salary',
+          userId: userProvider.currentUser?.id ?? 0,
+          userRole: 'admin',
+          isRead: false,
+          createdAt: DateTime.now().toIso8601String(),
+          relatedId: salary.id?.toString(),
+        );
+        
+        // Save notification to database and show local notification
+        await notificationProvider.addNotification(adminNotification);
+      }
+    } catch (e) {
+      print('Error sending salary notifications: $e');
+    }
   }
 }
