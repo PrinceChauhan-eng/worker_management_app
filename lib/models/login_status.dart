@@ -18,22 +18,22 @@ class LoginStatus {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'workerId': workerId,
+      'worker_id': workerId,
       'date': date,
-      'loginTime': loginTime,
-      'logoutTime': logoutTime,
-      'isLoggedIn': isLoggedIn ? 1 : 0,
+      'login_time': loginTime,
+      'logout_time': logoutTime,
+      'is_logged_in': isLoggedIn ? 1 : 0,
     };
   }
 
   factory LoginStatus.fromMap(Map<String, dynamic> map) {
     return LoginStatus(
       id: map['id'],
-      workerId: map['workerId'],
+      workerId: map['worker_id'] ?? map['workerId'],
       date: map['date'],
-      loginTime: map['loginTime'],
-      logoutTime: map['logoutTime'],
-      isLoggedIn: map['isLoggedIn'] == 1,
+      loginTime: map['login_time'] ?? map['loginTime'],
+      logoutTime: map['logout_time'] ?? map['logoutTime'],
+      isLoggedIn: (map['is_logged_in'] ?? map['isLoggedIn']) == 1,
     );
   }
 

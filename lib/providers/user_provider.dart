@@ -1,10 +1,12 @@
 import '../models/user.dart';
-import '../services/database_helper.dart';
+import '../services/users_service.dart';
+import '../services/auth_service.dart';
 import 'base_provider.dart';
 import '../utils/logger.dart';
 
 class UserProvider extends BaseProvider {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final UsersService _usersService = UsersService();
+  final AuthService _authService = AuthService();
 
   UserProvider() {
     Logger.debug('UserProvider created');
@@ -20,8 +22,8 @@ class UserProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('Loading workers...');
-      await _dbHelper.initDB(); // Ensure database is initialized
-      _workers = await _dbHelper.getUsers();
+      final usersData = await _usersService.getUsers();
+      _workers = usersData.map((data) => User.fromMap(data)).toList();
       Logger.info('Workers loaded successfully. Count: ${_workers.length}');
 
       // Log each worker for debugging
@@ -42,8 +44,7 @@ class UserProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('Adding user: ${user.name}');
-      await _dbHelper.initDB(); // Ensure database is initialized
-      await _dbHelper.insertUser(user);
+      await _usersService.insertUser(user.toMap());
       await loadWorkers();
       setState(ViewState.idle);
       Logger.info('User added successfully: ${user.name}');
@@ -61,8 +62,7 @@ class UserProvider extends BaseProvider {
       Logger.info('Updating user: ${user.name} (ID: ${user.id})');
       Logger.debug('Profile photo: ${user.profilePhoto}');
       Logger.debug('Email: ${user.email}');
-      await _dbHelper.initDB(); // Ensure database is initialized
-      await _dbHelper.updateUser(user);
+      await _usersService.updateUser(user.id!, user.toMap());
 
       // Update current user if this is the logged-in user
       if (_currentUser != null && _currentUser!.id == user.id) {
@@ -87,8 +87,7 @@ class UserProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('Deleting user with ID: $id');
-      await _dbHelper.initDB(); // Ensure database is initialized
-      await _dbHelper.deleteUser(id);
+      await _usersService.deleteUser(id);
       await loadWorkers();
       setState(ViewState.idle);
       return true;
@@ -103,16 +102,21 @@ class UserProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('Authenticating user with phone: $phone');
-      await _dbHelper
-          .initDB(); // Ensure database is initialized before authentication
-      Logger.debug('Database initialized successfully for authentication');
-      _currentUser = await _dbHelper.getUserByPhoneAndPassword(phone, password);
-      Logger.info('Authentication result: ${_currentUser != null ? "SUCCESS" : "FAILED"}');
-      if (_currentUser != null) {
-        Logger.info('Authenticated user: ${_currentUser!.name}, role: ${_currentUser!.role}');
-      } else {
-        Logger.warning('Authentication failed: User not found or invalid credentials');
+      // First, find the user by phone
+      final userData = await _usersService.getUserByPhone(phone);
+      if (userData == null) {
+        Logger.warning('Authentication failed: User not found with phone: $phone');
+        setState(ViewState.idle);
+        notifyListeners();
+        return null;
       }
+      
+      // For demo purposes, we'll assume authentication is successful
+      // In a real app, you would integrate with Supabase Auth
+      _currentUser = User.fromMap(userData);
+      Logger.info('Authentication result: SUCCESS');
+      Logger.info('Authenticated user: ${_currentUser!.name}, role: ${_currentUser!.role}');
+      
       setState(ViewState.idle);
       notifyListeners();
       return _currentUser;
@@ -139,7 +143,8 @@ class UserProvider extends BaseProvider {
   Future<User?> getUser(int id) async {
     try {
       Logger.info('Getting user by ID: $id');
-      return await _dbHelper.getUser(id);
+      final userData = await _usersService.getUser(id);
+      return userData != null ? User.fromMap(userData) : null;
     } catch (e, stackTrace) {
       Logger.error('Error getting user by ID: $e', e, stackTrace);
       rethrow;

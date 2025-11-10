@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
 import '../utils/validators.dart';
-import '../services/database_helper.dart';
+import '../services/users_service.dart';
 import 'login_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -36,14 +36,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       });
 
       try {
-        final dbHelper = DatabaseHelper();
-        await dbHelper.initDB();
+        final usersService = UsersService();
         
         // Clean phone number
         String cleanPhone = Validators.cleanPhoneNumber(_phoneController.text.trim());
         
         // Check if user exists
-        final user = await dbHelper.getUserByPhoneAndPassword(cleanPhone, '');
+        final user = await usersService.getUserByPhone(cleanPhone);
         
         if (user != null) {
           // Generate 6-digit OTP

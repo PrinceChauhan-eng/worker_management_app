@@ -35,10 +35,6 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   # Required packages for Worker Management App
-  sqflite: ^2.3.2
-  sqflite_common_ffi: ^2.3.0+4
-  sqflite_common_ffi_web: ^0.4.2+2
-  path_provider: ^2.1.2
   path: ^1.9.0
   shared_preferences: ^2.2.2
   provider: ^6.1.2
@@ -68,6 +64,8 @@ dependencies:
   firebase_auth: ^6.1.2
   # Security - Password hashing
   crypto: ^3.0.3
+  # Supabase integration
+  supabase_flutter: ^2.5.6
 
 dev_dependencies:
   flutter_test:

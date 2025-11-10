@@ -1,10 +1,10 @@
 import '../models/notification.dart';
-import '../services/database_helper.dart';
+import '../services/notifications_service.dart';
 import '../services/notification_service.dart';
 import 'base_provider.dart';
 
 class NotificationProvider extends BaseProvider {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final NotificationsService _notificationsService = NotificationsService();
   final NotificationService _notificationService = NotificationService();
   
   List<NotificationModel> _notifications = [];
@@ -17,8 +17,9 @@ class NotificationProvider extends BaseProvider {
   Future<void> loadNotifications(int userId, String userRole) async {
     setState(ViewState.busy);
     try {
-      _notifications = await _dbHelper.getNotificationsByUser(userId, userRole);
-      _unreadCount = await _dbHelper.getUnreadNotificationCount(userId, userRole);
+      final notificationsData = await _notificationsService.byUser(userId, userRole);
+      _notifications = notificationsData.map((data) => NotificationModel.fromMap(data)).toList();
+      _unreadCount = await _notificationsService.unreadCount(userId, userRole);
       setState(ViewState.idle);
       notifyListeners();
     } catch (e) {
@@ -30,7 +31,8 @@ class NotificationProvider extends BaseProvider {
   Future<void> loadUnreadNotifications(int userId, String userRole) async {
     setState(ViewState.busy);
     try {
-      _notifications = await _dbHelper.getUnreadNotificationsByUser(userId, userRole);
+      final notificationsData = await _notificationsService.unreadByUser(userId, userRole);
+      _notifications = notificationsData.map((data) => NotificationModel.fromMap(data)).toList();
       _unreadCount = _notifications.length;
       setState(ViewState.idle);
       notifyListeners();
@@ -43,7 +45,7 @@ class NotificationProvider extends BaseProvider {
   Future<bool> addNotification(NotificationModel notification) async {
     setState(ViewState.busy);
     try {
-      final id = await _dbHelper.insertNotification(notification);
+      final id = await _notificationsService.insert(notification.toMap());
       
       // Show local notification
       await _notificationService.showNotification(
@@ -66,7 +68,7 @@ class NotificationProvider extends BaseProvider {
   Future<bool> markAsRead(int notificationId) async {
     setState(ViewState.busy);
     try {
-      await _dbHelper.markNotificationAsRead(notificationId);
+      await _notificationsService.markRead(notificationId);
       
       // Update local list
       final index = _notifications.indexWhere((n) => n.id == notificationId);
@@ -101,7 +103,7 @@ class NotificationProvider extends BaseProvider {
   Future<bool> markAllAsRead(int userId, String userRole) async {
     setState(ViewState.busy);
     try {
-      await _dbHelper.markAllNotificationsAsRead(userId, userRole);
+      await _notificationsService.markAllRead(userId, userRole);
       
       // Update local list
       for (int i = 0; i < _notifications.length; i++) {
@@ -133,7 +135,7 @@ class NotificationProvider extends BaseProvider {
   Future<bool> deleteNotification(int id) async {
     setState(ViewState.busy);
     try {
-      await _dbHelper.deleteNotification(id);
+      await _notificationsService.delete(id);
       
       // Remove from local list
       _notifications.removeWhere((n) => n.id == id);

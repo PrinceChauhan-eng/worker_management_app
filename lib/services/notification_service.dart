@@ -2,7 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import '../models/notification.dart';
-import '../services/database_helper.dart';
+import '../services/notifications_service.dart';
 import '../utils/logger.dart';
 
 class NotificationService {
@@ -131,8 +131,8 @@ class NotificationService {
 
   // Save notification to database
   Future<int> saveNotification(NotificationModel notification) async {
-    final dbHelper = DatabaseHelper();
-    return await dbHelper.insertNotification(notification);
+    final notificationsService = NotificationsService();
+    return await notificationsService.insert(notification.toMap());
   }
 
   // Get notifications for a user
@@ -140,14 +140,15 @@ class NotificationService {
     int userId,
     String userRole,
   ) async {
-    final dbHelper = DatabaseHelper();
-    return await dbHelper.getNotificationsByUser(userId, userRole);
+    final notificationsService = NotificationsService();
+    final notificationsData = await notificationsService.byUser(userId, userRole);
+    return notificationsData.map((data) => NotificationModel.fromMap(data)).toList();
   }
 
   // Mark notification as read
   Future<void> markNotificationAsRead(int notificationId) async {
-    final dbHelper = DatabaseHelper();
-    await dbHelper.markNotificationAsRead(notificationId);
+    final notificationsService = NotificationsService();
+    await notificationsService.markRead(notificationId);
   }
 
   // Mark all notifications as read for a user
@@ -155,8 +156,8 @@ class NotificationService {
     int userId,
     String userRole,
   ) async {
-    final dbHelper = DatabaseHelper();
-    await dbHelper.markAllNotificationsAsRead(userId, userRole);
+    final notificationsService = NotificationsService();
+    await notificationsService.markAllRead(userId, userRole);
   }
 
   // Get unread notification count
@@ -164,7 +165,7 @@ class NotificationService {
     int userId,
     String userRole,
   ) async {
-    final dbHelper = DatabaseHelper();
-    return await dbHelper.getUnreadNotificationCount(userId, userRole);
+    final notificationsService = NotificationsService();
+    return await notificationsService.unreadCount(userId, userRole);
   }
 }

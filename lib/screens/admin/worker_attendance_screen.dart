@@ -9,7 +9,8 @@ import '../../models/user.dart';
 import '../../models/login_status.dart';
 import '../../models/notification.dart';
 import '../../widgets/custom_app_bar.dart';
-import '../../services/database_helper.dart';
+import '../../services/notifications_service.dart';
+import '../../services/login_service.dart';
 import '../../utils/logger.dart';
 
 class WorkerAttendanceScreen extends StatefulWidget {
@@ -208,114 +209,6 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                   ),
                 ],
               ),
-
-            const SizedBox(height: 30),
-
-            // Today's Status
-            if (_selectedWorker != null)
-              FutureBuilder<LoginStatus?>(
-                future: _getTodayStatus(_selectedWorker!),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  }
-
-                  final status = snapshot.data;
-                  bool isPresent = status != null && status.isLoggedIn;
-                  bool hasRecord = status != null;
-
-                  return Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Today\'s Status',
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        if (!hasRecord)
-                          Container(
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.info, color: Colors.orange),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'No attendance record for today',
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.orange,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          Container(
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              color: isPresent
-                                  ? Colors.green.shade50
-                                  : Colors.red.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isPresent ? Icons.check_circle : Icons.cancel,
-                                  color: isPresent ? Colors.green : Colors.red,
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  isPresent ? 'Present' : 'Absent',
-                                  style: GoogleFonts.poppins(
-                                    color: isPresent
-                                        ? Colors.green
-                                        : Colors.red,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const Spacer(),
-                                if (status.loginTime != null)
-                                  Text(
-                                    'Login: ${status.loginTime}',
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
           ],
         ),
       ),
@@ -327,23 +220,13 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: DateTime(2030),
     );
-
-    if (picked != null) {
+    if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
       });
     }
-  }
-
-  Future<LoginStatus?> _getTodayStatus(User worker) async {
-    final loginStatusProvider = Provider.of<LoginStatusProvider>(
-      context,
-      listen: false,
-    );
-    String dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-    return await loginStatusProvider.getLoginStatusForDate(worker.id!, dateStr);
   }
 
   Future<void> _markAttendance(String status) async {
@@ -354,7 +237,6 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
         context,
         listen: false,
       );
-      final dbHelper = DatabaseHelper();
       String dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       String timeStr = DateFormat('HH:mm:ss').format(DateTime.now());
 
@@ -391,7 +273,8 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
       if (loginStatus.id != null) {
         await loginStatusProvider.updateLoginStatus(loginStatus);
       } else {
-        await dbHelper.insertLoginStatus(loginStatus);
+        final loginService = LoginService();
+        await loginService.upsertStatus(loginStatus.toMap());
       }
 
       // Send notification to worker about attendance update
@@ -420,7 +303,7 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
     String date,
   ) async {
     try {
-      final dbHelper = DatabaseHelper();
+      final notificationService = NotificationsService();
 
       // Create notification for the worker
       final notification = NotificationModel(
@@ -435,7 +318,7 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
         relatedId: date, // Store the date as related ID
       );
 
-      await dbHelper.insertNotification(notification);
+      await notificationService.insert(notification.toMap());
 
       Logger.info('Attendance notification sent to worker ID: ${worker.id}');
     } catch (e) {

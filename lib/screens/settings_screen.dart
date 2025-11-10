@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/user_provider.dart';
-import '../services/database_helper.dart';
 import '../services/session_manager.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_button.dart';
@@ -124,12 +123,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
 
       try {
-        final dbHelper = DatabaseHelper();
-        await dbHelper.resetAllData();
-
+        // With Supabase, we don't have a direct resetAllData method
+        // In a real implementation, you would need to delete all records from all tables
+        // For now, we'll just show a message that this functionality needs to be implemented
+        
         Fluttertoast.showToast(
-          msg: 'All data has been reset successfully!',
-          toastLength: Toast.LENGTH_SHORT,
+          msg: 'Data reset functionality needs to be implemented for Supabase',
+          toastLength: Toast.LENGTH_LONG,
           gravity: ToastGravity.BOTTOM,
         );
 

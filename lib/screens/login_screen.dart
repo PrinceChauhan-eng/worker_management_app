@@ -7,7 +7,7 @@ import '../models/user.dart';
 import '../providers/user_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/session_manager.dart';
-import '../services/database_helper.dart';
+import '../services/users_service.dart';
 import '../utils/validators.dart';
 import '../utils/password_utils.dart';
 import '../widgets/custom_text_field.dart';
@@ -132,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = true);
 
       try {
-        final dbHelper = DatabaseHelper();
+        final usersService = UsersService();
         final userProvider = Provider.of<UserProvider>(context, listen: false);
 
         User? user;
@@ -142,71 +142,75 @@ class _LoginScreenState extends State<LoginScreen> {
         // Authenticate user based on selected role and method
         if (_loginMethod == 'phone') {
           print('Authenticating with phone: ${_phoneController.text.trim()}');
-          user = await dbHelper.getUserByPhoneAndPassword(
-            _phoneController.text.trim(),
-            _passwordController.text,
-          );
-          // Check role after authentication
-          if (user != null && user.role != _selectedRole) {
-            print('Role mismatch. User role: ${user.role}, Selected role: $_selectedRole');
-            user = null; // Role mismatch
+          // First get user by phone
+          final userData = await usersService.getUserByPhone(_phoneController.text.trim());
+          if (userData != null) {
+            final foundUser = User.fromMap(userData);
+            // Check if password matches
+            bool passwordMatches;
+            if (PasswordUtils.isHashed(foundUser.password)) {
+              passwordMatches = PasswordUtils.verifyPassword(
+                _passwordController.text,
+                foundUser.password,
+              );
+            } else {
+              passwordMatches = _passwordController.text == foundUser.password;
+            }
+            
+            if (passwordMatches && foundUser.role == _selectedRole) {
+              user = foundUser;
+            }
           }
         } else if (_loginMethod == 'email') {
           print('Authenticating with email: ${_phoneController.text.trim()}');
           // For email login, we need to search by email first, then authenticate
-          var client = await dbHelper.db;
-          var results = await client.query(
-            'users',
-            where: 'email = ? AND role = ?',
-            whereArgs: [_phoneController.text.trim(), _selectedRole],
-          );
+          // This would require a specific method in UsersService to search by email
+          // For now, we'll implement a basic search
           
-          if (results.isNotEmpty) {
-            var userData = results.first;
-            var storedPassword = userData['password'] as String;
-            
-            // Verify password
-            bool passwordMatches;
-            if (PasswordUtils.isHashed(storedPassword)) {
-              passwordMatches = PasswordUtils.verifyPassword(
-                _passwordController.text,
-                storedPassword,
-              );
-            } else {
-              passwordMatches = _passwordController.text == storedPassword;
-            }
-            
-            if (passwordMatches) {
-              user = User.fromMap(userData);
+          // Get all users and filter by email and role
+          final usersData = await usersService.getUsers();
+          for (var userData in usersData) {
+            if (userData['email'] == _phoneController.text.trim() && userData['role'] == _selectedRole) {
+              final foundUser = User.fromMap(userData);
+              // Verify password
+              bool passwordMatches;
+              if (PasswordUtils.isHashed(foundUser.password)) {
+                passwordMatches = PasswordUtils.verifyPassword(
+                  _passwordController.text,
+                  foundUser.password,
+                );
+              } else {
+                passwordMatches = _passwordController.text == foundUser.password;
+              }
+              
+              if (passwordMatches) {
+                user = foundUser;
+                break;
+              }
             }
           }
         } else if (_loginMethod == 'id') {
           print('Authenticating with ID: ${_phoneController.text.trim()}');
           // For ID login, we need to search by ID first, then authenticate
-          var client = await dbHelper.db;
-          var results = await client.query(
-            'users',
-            where: 'id = ? AND role = ?',
-            whereArgs: [int.tryParse(_phoneController.text.trim()) ?? 0, _selectedRole],
-          );
-          
-          if (results.isNotEmpty) {
-            var userData = results.first;
-            var storedPassword = userData['password'] as String;
-            
-            // Verify password
-            bool passwordMatches;
-            if (PasswordUtils.isHashed(storedPassword)) {
-              passwordMatches = PasswordUtils.verifyPassword(
-                _passwordController.text,
-                storedPassword,
-              );
-            } else {
-              passwordMatches = _passwordController.text == storedPassword;
-            }
-            
-            if (passwordMatches) {
-              user = User.fromMap(userData);
+          final userId = int.tryParse(_phoneController.text.trim()) ?? 0;
+          if (userId > 0) {
+            final userData = await usersService.getUser(userId);
+            if (userData != null && userData['role'] == _selectedRole) {
+              final foundUser = User.fromMap(userData);
+              // Verify password
+              bool passwordMatches;
+              if (PasswordUtils.isHashed(foundUser.password)) {
+                passwordMatches = PasswordUtils.verifyPassword(
+                  _passwordController.text,
+                  foundUser.password,
+                );
+              } else {
+                passwordMatches = _passwordController.text == foundUser.password;
+              }
+              
+              if (passwordMatches) {
+                user = foundUser;
+              }
             }
           }
         }

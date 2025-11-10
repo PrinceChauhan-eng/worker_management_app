@@ -3,10 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../utils/error_reporter.dart';
-import '../services/database_helper.dart';
 import '../services/session_manager.dart';
 import '../providers/user_provider.dart';
 import '../models/user.dart'; // Import User model
+import '../services/users_service.dart'; // Import UsersService
 import 'login_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'worker_dashboard_screen.dart';
@@ -31,15 +31,8 @@ class _SplashScreenState extends State<SplashScreen> {
       await Future.delayed(const Duration(seconds: 2));
       print('Splash screen delay completed');
 
-      // Ensure database is initialized first
-      print('Initializing database...');
-      final dbHelper = DatabaseHelper();
-      await dbHelper.initDB();
-      
-      // Force database upgrade to ensure all columns exist
-      await dbHelper.forceUpgrade();
-      
-      print('Database initialized successfully');
+      // Database initialization is handled by Supabase, no need to initialize here
+      print('Using Supabase for data storage');
 
       if (!mounted) {
         print('Widget not mounted, returning');
@@ -53,8 +46,9 @@ class _SplashScreenState extends State<SplashScreen> {
       if (currentUserId != null) {
         print('Found tab-specific user ID: $currentUserId');
         // Load specific user for this tab
-        final dbHelper = DatabaseHelper();
-        final user = await dbHelper.getUser(currentUserId);
+        final usersService = UsersService();
+        final userData = await usersService.getUser(currentUserId);
+        final user = userData != null ? User.fromMap(userData) : null;
         
         if (user != null) {
           print('Found current user for this tab: ${user.name} (ID: $currentUserId)');
@@ -95,8 +89,9 @@ class _SplashScreenState extends State<SplashScreen> {
         print('Found existing session for user ID: $userId, role: $userRole');
         
         // Load user from database
-        final dbHelper = DatabaseHelper();
-        final user = await dbHelper.getUser(userId);
+        final usersService = UsersService();
+        final userData = await usersService.getUser(userId);
+        final user = userData != null ? User.fromMap(userData) : null;
         
         if (user != null && user.role == userRole) {
           print('User loaded from database: ${user.name}');
@@ -134,18 +129,13 @@ class _SplashScreenState extends State<SplashScreen> {
         final rememberedPhone = remembered['phone'];
         if (rememberedPhone != null && rememberedPhone.isNotEmpty) {
           print('Found remembered user, attempting auto-login for phone: $rememberedPhone');
-          final dbHelper = DatabaseHelper();
+          final usersService = UsersService();
           
-          // Try to find user by phone (we'll need to get all users with this phone and check)
-          var client = await dbHelper.db;
-          var results = await client.query(
-            'users',
-            where: 'phone = ?',
-            whereArgs: [rememberedPhone],
-          );
+          // Try to find user by phone
+          final userData = await usersService.getUserByPhone(rememberedPhone);
           
-          if (results.isNotEmpty) {
-            final user = User.fromMap(results.first);
+          if (userData != null) {
+            final user = User.fromMap(userData);
             print('Auto-login successful for user: ${user.name}');
             
             // Set user in provider
@@ -231,48 +221,45 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // App Logo (using Icon as placeholder)
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(30),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
               child: const Icon(
                 Icons.work,
                 size: 80,
-                color: Color(0xFF1E88E5), // Royal Blue
+                color: Color(0xFF1E88E5),
               ),
             ),
             const SizedBox(height: 30),
-            // App Name
             Text(
               'Worker Management',
               style: GoogleFonts.poppins(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: const Color(0xFF1E88E5),
               ),
             ),
             const SizedBox(height: 10),
             Text(
-              'Manage your workforce efficiently',
+              'Professional Solution',
               style: GoogleFonts.poppins(
                 fontSize: 16,
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.grey[600],
               ),
             ),
             const SizedBox(height: 50),
-            // Progress indicator
             const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1E88E5)),
             ),
           ],
         ),

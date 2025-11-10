@@ -1,10 +1,10 @@
 import '../models/salary.dart';
-import '../services/database_helper.dart';
+import '../services/salary_service.dart';
 import 'base_provider.dart';
 import '../utils/logger.dart';
 
 class SalaryProvider extends BaseProvider {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final SalaryService _salaryService = SalaryService();
   
   List<Salary> _salaries = [];
   List<Salary> get salaries => _salaries;
@@ -13,7 +13,8 @@ class SalaryProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('Loading salaries...');
-      _salaries = await _dbHelper.getSalaries();
+      final salariesData = await _salaryService.all();
+      _salaries = salariesData.map((data) => Salary.fromMap(data)).toList();
       Logger.info('Loaded ${_salaries.length} salaries');
       setState(ViewState.idle);
       notifyListeners();
@@ -28,7 +29,8 @@ class SalaryProvider extends BaseProvider {
   Future<Salary?> getSalaryByWorkerIdAndMonth(int workerId, String month) async {
     try {
       Logger.info('Getting salary for worker ID: $workerId and month: $month');
-      return await _dbHelper.getSalaryByWorkerIdAndMonth(workerId, month);
+      final salaryData = await _salaryService.byWorkerAndMonth(workerId, month);
+      return salaryData != null ? Salary.fromMap(salaryData) : null;
     } catch (e, stackTrace) {
       Logger.error('Error getting salary by worker ID and month: $e', e, stackTrace);
       rethrow;
@@ -39,7 +41,8 @@ class SalaryProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('Loading salaries for worker ID: $workerId');
-      _salaries = await _dbHelper.getSalariesByWorkerId(workerId);
+      final salariesData = await _salaryService.byWorker(workerId);
+      _salaries = salariesData.map((data) => Salary.fromMap(data)).toList();
       Logger.info('Loaded ${_salaries.length} salaries for worker ID: $workerId');
       setState(ViewState.idle);
       notifyListeners();
@@ -54,7 +57,8 @@ class SalaryProvider extends BaseProvider {
   Future<List<Salary>> getPaidSalaries() async {
     try {
       Logger.info('Getting paid salaries...');
-      return await _dbHelper.getPaidSalaries();
+      final salariesData = await _salaryService.paid();
+      return salariesData.map((data) => Salary.fromMap(data)).toList();
     } catch (e, stackTrace) {
       Logger.error('Error getting paid salaries: $e', e, stackTrace);
       rethrow;
@@ -64,7 +68,8 @@ class SalaryProvider extends BaseProvider {
   Future<List<Salary>> getPaidSalariesByMonth(String month) async {
     try {
       Logger.info('Getting paid salaries for month: $month');
-      return await _dbHelper.getPaidSalariesByMonth(month);
+      final salariesData = await _salaryService.paidByMonth(month);
+      return salariesData.map((data) => Salary.fromMap(data)).toList();
     } catch (e, stackTrace) {
       Logger.error('Error getting paid salaries by month: $e', e, stackTrace);
       rethrow;
@@ -74,7 +79,8 @@ class SalaryProvider extends BaseProvider {
   Future<List<Salary>> getPaidSalariesByWorkerIdAndMonth(int workerId, String month) async {
     try {
       Logger.info('Getting paid salaries for worker ID: $workerId, month: $month');
-      return await _dbHelper.getPaidSalariesByWorkerIdAndMonth(workerId, month);
+      final salariesData = await _salaryService.paidByWorkerAndMonth(workerId, month);
+      return salariesData.map((data) => Salary.fromMap(data)).toList();
     } catch (e, stackTrace) {
       Logger.error('Error getting paid salaries by worker ID and month: $e', e, stackTrace);
       rethrow;
@@ -114,7 +120,7 @@ class SalaryProvider extends BaseProvider {
       }
       
       Logger.info('Inserting salary into database...');
-      final result = await _dbHelper.insertSalary(salary);
+      final result = await _salaryService.insert(salary.toMap());
       Logger.info('Salary inserted with result: $result');
       
       Logger.info('Reloading salaries...');
@@ -143,7 +149,7 @@ class SalaryProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('Updating salary ID: ${salary.id}');
-      await _dbHelper.updateSalary(salary);
+      await _salaryService.updateById(salary.id!, salary.toMap());
       await loadSalaries();
       setState(ViewState.idle);
       return true;
@@ -158,7 +164,7 @@ class SalaryProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('Deleting salary ID: $id');
-      await _dbHelper.deleteSalary(id);
+      await _salaryService.deleteById(id);
       await loadSalaries();
       setState(ViewState.idle);
       return true;

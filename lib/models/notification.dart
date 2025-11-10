@@ -27,11 +27,11 @@ class NotificationModel {
       'title': title,
       'message': message,
       'type': type,
-      'userId': userId,
-      'userRole': userRole,
-      'isRead': isRead ? 1 : 0,
-      'createdAt': createdAt,
-      'relatedId': relatedId,
+      'user_id': userId,
+      'user_role': userRole,
+      'is_read': isRead ? 1 : 0,
+      'created_at': createdAt,
+      'related_id': relatedId,
     };
   }
 
@@ -41,11 +41,11 @@ class NotificationModel {
       title: map['title'],
       message: map['message'],
       type: map['type'],
-      userId: map['userId'],
-      userRole: map['userRole'],
-      isRead: map['isRead'] == 1,
-      createdAt: map['createdAt'],
-      relatedId: map['relatedId'],
+      userId: map['user_id'] ?? map['userId'],
+      userRole: map['user_role'] ?? map['userRole'],
+      isRead: (map['is_read'] ?? map['isRead']) == 1,
+      createdAt: map['created_at'] ?? map['createdAt'],
+      relatedId: map['related_id'] ?? map['relatedId'],
     );
   }
 }

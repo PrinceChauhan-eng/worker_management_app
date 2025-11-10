@@ -8,7 +8,6 @@ import '../models/notification.dart';
 import '../providers/user_provider.dart';
 import '../providers/advance_provider.dart';
 import '../providers/notification_provider.dart';
-import '../services/database_helper.dart';
 import '../utils/logger.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_text_field.dart';
@@ -25,7 +24,6 @@ class _RequestAdvanceScreenState extends State<RequestAdvanceScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
-  final _dbHelper = DatabaseHelper();
   
   String? _selectedPurpose;
   bool _isLoading = false;
@@ -75,11 +73,7 @@ class _RequestAdvanceScreenState extends State<RequestAdvanceScreen> {
       );
 
       // Force database upgrade before inserting advance
-      try {
-        await _dbHelper.forceUpgrade();
-      } catch (e) {
-        Logger.error('Error forcing database upgrade: $e', e);
-      }
+      // This is no longer needed with Supabase
       
       bool success = await advanceProvider.addAdvance(advance);
 

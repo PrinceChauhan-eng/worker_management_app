@@ -26,30 +26,30 @@ class Advance {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'workerId': workerId,
+      'worker_id': workerId,
       'amount': amount,
       'date': date,
       'purpose': purpose,
       'note': note,
       'status': status,
-      'deductedFromSalaryId': deductedFromSalaryId,
-      'approvedBy': approvedBy,
-      'approvedDate': approvedDate,
+      'deducted_from_salary_id': deductedFromSalaryId,
+      'approved_by': approvedBy,
+      'approved_date': approvedDate,
     };
   }
 
   factory Advance.fromMap(Map<String, dynamic> map) {
     return Advance(
       id: map['id'],
-      workerId: map['workerId'],
+      workerId: map['worker_id'] ?? map['workerId'],
       amount: map['amount'],
       date: map['date'],
       purpose: map['purpose'],
       note: map['note'],
       status: map['status'] ?? 'pending',
-      deductedFromSalaryId: map['deductedFromSalaryId'],
-      approvedBy: map['approvedBy'],
-      approvedDate: map['approvedDate'],
+      deductedFromSalaryId: map['deducted_from_salary_id'] ?? map['deductedFromSalaryId'],
+      approvedBy: map['approved_by'] ?? map['approvedBy'],
+      approvedDate: map['approved_date'] ?? map['approvedDate'],
     );
   }
 

@@ -18,10 +18,10 @@ class Attendance {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'workerId': workerId,
+      'worker_id': workerId,
       'date': date,
-      'inTime': inTime,
-      'outTime': outTime,
+      'in_time': inTime,
+      'out_time': outTime,
       'present': present ? 1 : 0,
     };
   }
@@ -29,11 +29,11 @@ class Attendance {
   factory Attendance.fromMap(Map<String, dynamic> map) {
     return Attendance(
       id: map['id'],
-      workerId: map['workerId'],
+      workerId: map['worker_id'] ?? map['workerId'],
       date: map['date'],
-      inTime: map['inTime'],
-      outTime: map['outTime'],
-      present: map['present'] == 1,
+      inTime: map['in_time'] ?? map['inTime'],
+      outTime: map['out_time'] ?? map['outTime'],
+      present: (map['present'] ?? map['present']) == 1,
     );
   }
 }

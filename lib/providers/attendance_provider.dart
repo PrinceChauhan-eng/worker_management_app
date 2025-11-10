@@ -1,38 +1,56 @@
 import '../models/attendance.dart';
-import '../services/database_helper.dart';
+import '../services/attendance_service.dart';
 import 'base_provider.dart';
 
 class AttendanceProvider extends BaseProvider {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final AttendanceService _attendanceService = AttendanceService();
   
   List<Attendance> _attendances = [];
   List<Attendance> get attendances => _attendances;
 
   Future<void> loadAttendances() async {
     setState(ViewState.busy);
-    _attendances = await _dbHelper.getAttendances();
-    setState(ViewState.idle);
-    notifyListeners();
+    try {
+      final attendancesData = await _attendanceService.all();
+      _attendances = attendancesData.map((data) => Attendance.fromMap(data)).toList();
+      setState(ViewState.idle);
+      notifyListeners();
+    } catch (e) {
+      setState(ViewState.idle);
+      notifyListeners();
+    }
   }
 
   Future<void> loadAttendancesByWorkerId(int workerId) async {
     setState(ViewState.busy);
-    _attendances = await _dbHelper.getAttendancesByWorkerId(workerId);
-    setState(ViewState.idle);
-    notifyListeners();
+    try {
+      final attendancesData = await _attendanceService.byWorker(workerId);
+      _attendances = attendancesData.map((data) => Attendance.fromMap(data)).toList();
+      setState(ViewState.idle);
+      notifyListeners();
+    } catch (e) {
+      setState(ViewState.idle);
+      notifyListeners();
+    }
   }
 
   Future<void> loadAttendancesByWorkerIdAndDate(int workerId, String date) async {
     setState(ViewState.busy);
-    _attendances = await _dbHelper.getAttendancesByWorkerIdAndDate(workerId, date);
-    setState(ViewState.idle);
-    notifyListeners();
+    try {
+      final attendancesData = await _attendanceService.byWorkerAndDate(workerId, date);
+      _attendances = attendancesData.map((data) => Attendance.fromMap(data)).toList();
+      setState(ViewState.idle);
+      notifyListeners();
+    } catch (e) {
+      setState(ViewState.idle);
+      notifyListeners();
+    }
   }
 
   Future<bool> addAttendance(Attendance attendance) async {
     setState(ViewState.busy);
     try {
-      await _dbHelper.insertAttendance(attendance);
+      await _attendanceService.insert(attendance.toMap());
       await loadAttendances();
       setState(ViewState.idle);
       return true;
@@ -45,7 +63,7 @@ class AttendanceProvider extends BaseProvider {
   Future<bool> updateAttendance(Attendance attendance) async {
     setState(ViewState.busy);
     try {
-      await _dbHelper.updateAttendance(attendance);
+      await _attendanceService.updateById(attendance.id!, attendance.toMap());
       await loadAttendances();
       setState(ViewState.idle);
       return true;
@@ -58,7 +76,7 @@ class AttendanceProvider extends BaseProvider {
   Future<bool> deleteAttendance(int id) async {
     setState(ViewState.busy);
     try {
-      await _dbHelper.deleteAttendance(id);
+      await _attendanceService.deleteById(id);
       await loadAttendances();
       setState(ViewState.idle);
       return true;

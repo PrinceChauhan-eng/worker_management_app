@@ -1,11 +1,11 @@
 import '../models/advance.dart';
-import '../services/database_helper.dart';
+import '../services/advance_service.dart';
 import '../providers/hybrid_database_provider.dart';
 import 'base_provider.dart';
 import '../utils/logger.dart';
 
 class AdvanceProvider extends BaseProvider {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final AdvanceService _advanceService = AdvanceService();
   final HybridDatabaseProvider _hybridProvider = HybridDatabaseProvider();
   
   List<Advance> _advances = [];
@@ -19,12 +19,13 @@ class AdvanceProvider extends BaseProvider {
       Logger.info('Loaded ${_advances.length} advances from database');
     } catch (e) {
       Logger.error('Error loading advances: $e', e);
-      // Fallback to local database directly
+      // Fallback to Supabase service
       try {
-        _advances = await _dbHelper.getAdvances();
-        Logger.info('Loaded ${_advances.length} advances from local database (fallback)');
+        final advancesData = await _advanceService.all();
+        _advances = advancesData.map((data) => Advance.fromMap(data)).toList();
+        Logger.info('Loaded ${_advances.length} advances from Supabase (fallback)');
       } catch (e2) {
-        Logger.error('Error loading advances from local database: $e2', e2);
+        Logger.error('Error loading advances from Supabase: $e2', e2);
         _advances = [];
       }
     }
@@ -40,12 +41,13 @@ class AdvanceProvider extends BaseProvider {
       Logger.info('Loaded ${_advances.length} advances for worker ID: $workerId');
     } catch (e) {
       Logger.error('Error loading advances by worker ID: $e', e);
-      // Fallback to local database directly
+      // Fallback to Supabase service
       try {
-        _advances = await _dbHelper.getAdvancesByWorkerId(workerId);
-        Logger.info('Loaded ${_advances.length} advances for worker ID: $workerId from local database (fallback)');
+        final advancesData = await _advanceService.byWorker(workerId);
+        _advances = advancesData.map((data) => Advance.fromMap(data)).toList();
+        Logger.info('Loaded ${_advances.length} advances for worker ID: $workerId from Supabase (fallback)');
       } catch (e2) {
-        Logger.error('Error loading advances by worker ID from local database: $e2', e2);
+        Logger.error('Error loading advances by worker ID from Supabase: $e2', e2);
         _advances = [];
       }
     }
@@ -55,7 +57,8 @@ class AdvanceProvider extends BaseProvider {
 
   Future<List<Advance>> getAdvancesByWorkerIdAndMonth(int workerId, String month) async {
     try {
-      return await _dbHelper.getAdvancesByWorkerIdAndMonth(workerId, month);
+      final advancesData = await _advanceService.byWorkerAndMonth(workerId, month);
+      return advancesData.map((data) => Advance.fromMap(data)).toList();
     } catch (e) {
       Logger.error('Error getting advances by worker ID and month: $e', e);
       return [];
@@ -64,7 +67,13 @@ class AdvanceProvider extends BaseProvider {
 
   Future<double> getTotalAdvanceByWorkerId(int workerId) async {
     try {
-      return await _dbHelper.getTotalAdvanceByWorkerId(workerId);
+      final advancesData = await _advanceService.byWorker(workerId);
+      final advances = advancesData.map((data) => Advance.fromMap(data)).toList();
+      double total = 0.0;
+      for (var advance in advances) {
+        total += advance.amount;
+      }
+      return total;
     } catch (e) {
       Logger.error('Error getting total advance by worker ID: $e', e);
       return 0.0;
@@ -74,7 +83,7 @@ class AdvanceProvider extends BaseProvider {
   Future<bool> addAdvance(Advance advance) async {
     setState(ViewState.busy);
     try {
-      int id = await _hybridProvider.insertAdvance(advance);
+      int id = await _advanceService.insert(advance.toMap());
       Logger.info('Inserted advance with ID: $id');
       await loadAdvances();
       setState(ViewState.idle);
@@ -103,18 +112,12 @@ class AdvanceProvider extends BaseProvider {
         return false;
       }
       
-      int rowsAffected = await _hybridProvider.updateAdvance(advance);
-      Logger.info('Updated advance ID: ${advance.id}, rows affected: $rowsAffected');
+      await _advanceService.updateById(advance.id!, advance.toMap());
+      Logger.info('Updated advance ID: ${advance.id}');
       
-      if (rowsAffected > 0) {
-        await loadAdvances();
-        setState(ViewState.idle);
-        return true;
-      } else {
-        Logger.warning('No rows affected when updating advance ID: ${advance.id}');
-        setState(ViewState.idle);
-        return false;
-      }
+      await loadAdvances();
+      setState(ViewState.idle);
+      return true;
     } catch (e) {
       Logger.error('Error updating advance: $e', e);
       setState(ViewState.idle);
@@ -125,7 +128,7 @@ class AdvanceProvider extends BaseProvider {
   Future<bool> deleteAdvance(int id) async {
     setState(ViewState.busy);
     try {
-      await _hybridProvider.deleteAdvance(id);
+      await _advanceService.deleteById(id);
       await loadAdvances();
       setState(ViewState.idle);
       return true;
