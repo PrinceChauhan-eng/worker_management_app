@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/session_manager.dart';
+import 'package:provider/provider.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import '../utils/error_reporter.dart';
 import '../services/database_helper.dart';
+import '../services/session_manager.dart';
 import '../providers/user_provider.dart';
+import '../models/user.dart'; // Import User model
 import 'login_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'worker_dashboard_screen.dart';
@@ -23,53 +26,138 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigateToNextScreen();
   }
 
-  _navigateToNextScreen() async {
-    print('Splash screen navigation started');
+  Future<void> _navigateToNextScreen() async {
     try {
       await Future.delayed(const Duration(seconds: 2));
       print('Splash screen delay completed');
-      
+
       // Ensure database is initialized first
       print('Initializing database...');
       final dbHelper = DatabaseHelper();
       await dbHelper.initDB();
+      
+      // Force database upgrade to ensure all columns exist
+      await dbHelper.forceUpgrade();
+      
       print('Database initialized successfully');
-      
-      SessionManager sessionManager = SessionManager();
-      print('Checking if user is logged in...');
-      bool isLoggedIn = await sessionManager.isLoggedIn();
-      print('Is user logged in: $isLoggedIn');
-      
+
       if (!mounted) {
         print('Widget not mounted, returning');
         return;
       }
+
+      // Check for tab-specific current user first
+      final sessionManager = SessionManager();
+      final currentUserId = await sessionManager.getCurrentUserId();
       
-      if (isLoggedIn) {
-        try {
-          print('User is logged in, getting user data...');
-          int userId = await sessionManager.getUserId();
-          String userRole = await sessionManager.getUserRole();
-          print('Logged in user ID: $userId, role: $userRole');
+      if (currentUserId != null) {
+        print('Found tab-specific user ID: $currentUserId');
+        // Load specific user for this tab
+        final dbHelper = DatabaseHelper();
+        final user = await dbHelper.getUser(currentUserId);
+        
+        if (user != null) {
+          print('Found current user for this tab: ${user.name} (ID: $currentUserId)');
           
-          if (userId <= 0) {
-            print('Invalid user ID, navigating to login');
+          // Set user in provider
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          userProvider.setCurrentUser(user);
+          
+          // Navigate to appropriate dashboard
+          if (user.role == 'admin') {
+            print('Navigating to Admin Dashboard');
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const LoginScreen()),
+              MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
             );
-            return;
+          } else {
+            print('Navigating to Worker Dashboard');
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const WorkerDashboardScreen()),
+            );
           }
-          
-          // Load user from database and set in provider
+          return;
+        } else {
+          print('User not found for ID: $currentUserId, clearing current user ID');
+          await sessionManager.clearCurrentUserId();
+        }
+      }
+
+      // Check for existing sessions if no tab-specific user
+      final sessions = await sessionManager.getActiveSessions();
+      
+      if (sessions.isNotEmpty) {
+        // Load user data for the first session
+        final userId = sessions.first.userId;
+        final userRole = sessions.first.userRole;
+        
+        print('Found existing session for user ID: $userId, role: $userRole');
+        
+        // Load user from database
+        final dbHelper = DatabaseHelper();
+        final user = await dbHelper.getUser(userId);
+        
+        if (user != null && user.role == userRole) {
+          print('User loaded from database: ${user.name}');
           final userProvider = Provider.of<UserProvider>(context, listen: false);
-          final user = await dbHelper.getUser(userId);
+          userProvider.setCurrentUser(user);
+          print('Setting current user: ${user.name}');
           
-          if (user != null) {
-            print('User loaded from database: ${user.name}');
+          // Set this user as current for this tab
+          await sessionManager.setCurrentUserId(userId);
+          
+          // Navigate to appropriate dashboard
+          if (user.role == 'admin') {
+            print('Navigating to Admin Dashboard');
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+            );
+          } else {
+            print('Navigating to Worker Dashboard');
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const WorkerDashboardScreen()),
+            );
+          }
+          return;
+        } else {
+          print('User not found or role mismatch, clearing sessions');
+          await sessionManager.clearAllSessions();
+        }
+      }
+      
+      // Check for "remember me" functionality as a last resort
+      final remembered = await sessionManager.getRememberMe();
+      if (remembered != null && remembered['phone'] != null) {
+        final rememberedPhone = remembered['phone'];
+        if (rememberedPhone != null && rememberedPhone.isNotEmpty) {
+          print('Found remembered user, attempting auto-login for phone: $rememberedPhone');
+          final dbHelper = DatabaseHelper();
+          
+          // Try to find user by phone (we'll need to get all users with this phone and check)
+          var client = await dbHelper.db;
+          var results = await client.query(
+            'users',
+            where: 'phone = ?',
+            whereArgs: [rememberedPhone],
+          );
+          
+          if (results.isNotEmpty) {
+            final user = User.fromMap(results.first);
+            print('Auto-login successful for user: ${user.name}');
+            
+            // Set user in provider
+            final userProvider = Provider.of<UserProvider>(context, listen: false);
             userProvider.setCurrentUser(user);
             
-            if (userRole == 'admin') {
+            // Add session and set current user ID
+            await sessionManager.addSession(user.id!, user.role);
+            await sessionManager.setCurrentUserId(user.id!);
+            
+            // Navigate to appropriate dashboard
+            if (user.role == 'admin') {
               print('Navigating to Admin Dashboard');
               Navigator.pushReplacement(
                 context,
@@ -82,34 +170,41 @@ class _SplashScreenState extends State<SplashScreen> {
                 MaterialPageRoute(builder: (context) => const WorkerDashboardScreen()),
               );
             }
+            return;
           } else {
-            print('User not found in database, logging out');
-            await sessionManager.logout();
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const LoginScreen()),
-            );
+            print('No user found with remembered phone number: $rememberedPhone');
           }
-        } catch (e) {
-          print('Error retrieving user data from session: $e');
-          // If there's an error, navigate to login screen
-          print('Navigating to Login Screen due to error');
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-          );
         }
-      } else {
-        print('User is not logged in, navigating to Login Screen');
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
       }
-    } catch (e) {
-      print('Error in splash screen navigation: $e');
+      
+      // No valid session found, go to login screen
+      print('No valid session found, navigating to login screen');
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    } catch (e, stackTrace) {
+      print('=== SPLASH SCREEN ERROR ===');
+      print('Error type: ${e.runtimeType}');
+      print('Error message: $e');
+      print('Stack trace: $stackTrace');
+      print('==========================');
+      
+      // Use the error reporter to handle the error
+      ErrorReporter.reportError(e, stackTrace, context: 'App Initialization');
+      
       // If there's an error, navigate to login screen
       print('Navigating to Login Screen due to error');
+      
+      String errorMessage = ErrorReporter.getErrorMessage(e);
+      Fluttertoast.showToast(
+        msg: errorMessage,
+        backgroundColor: Colors.red,
+      );
+      
+      // Small delay to show the error message
+      await Future.delayed(const Duration(seconds: 2));
+      
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LoginScreen()),

@@ -3,12 +3,11 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter/material.dart';
 import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server.dart';
+import '../../utils/logger.dart';
 
 // Email configuration - In production, use environment variables
 const String _smtpUsername = String.fromEnvironment('SMTP_USERNAME', defaultValue: '');
 const String _smtpPassword = String.fromEnvironment('SMTP_PASSWORD', defaultValue: '');
-const String _smtpServer = String.fromEnvironment('SMTP_SERVER', defaultValue: 'smtp.gmail.com');
-const int _smtpPort = int.fromEnvironment('SMTP_PORT', defaultValue: 587);
 const String _senderEmail = String.fromEnvironment('SENDER_EMAIL', defaultValue: '');
 const String _senderName = String.fromEnvironment('SENDER_NAME', defaultValue: 'Worker Management App');
 
@@ -17,7 +16,7 @@ class EmailVerificationService {
   static String generateOTP() {
     final random = Random();
     final otp = random.nextInt(900000) + 100000; // Generates 6-digit number
-    print('Generated OTP: $otp');
+    Logger.debug('Generated OTP: $otp');
     return otp.toString();
   }
 
@@ -25,35 +24,47 @@ class EmailVerificationService {
   /// Supports both production mode (real email) and demo mode
   static Future<bool> sendVerificationEmail(String email, String otp, [BuildContext? context]) async {
     try {
-      print('Sending verification email to: $email with OTP: $otp');
+      Logger.info('Sending verification email to: $email with OTP: $otp');
       
       // Check if we have SMTP credentials for production mode
       final bool isProductionMode = _smtpUsername.isNotEmpty && _smtpPassword.isNotEmpty && _senderEmail.isNotEmpty;
       
       if (isProductionMode) {
-        print('Sending real email via SMTP');
+        Logger.info('Sending real email via SMTP');
         final success = await _sendRealEmail(email, otp);
         if (success) {
-          print('Real email sent successfully');
+          Logger.info('Real email sent successfully');
           // Still show notifications for user feedback
-          _showUserNotifications(email, otp, context);
+          // Check if context is still mounted before using it
+          if (context?.mounted ?? false) {
+            _showUserNotifications(email, otp, context);
+          }
           return true;
         } else {
-          print('Failed to send real email, falling back to demo mode');
+          Logger.warning('Failed to send real email, falling back to demo mode');
           // Fallback to demo mode
-          _showUserNotifications(email, otp, context);
+          // Check if context is still mounted before using it
+          if (context?.mounted ?? false) {
+            _showUserNotifications(email, otp, context);
+          }
           return true;
         }
       } else {
-        print('Sending demo email (no SMTP credentials configured)');
+        Logger.info('Sending demo email (no SMTP credentials configured)');
         // Demo mode - show OTP to user directly
-        _showUserNotifications(email, otp, context);
+        // Check if context is still mounted before using it
+        if (context?.mounted ?? false) {
+          _showUserNotifications(email, otp, context);
+        }
         return true;
       }
     } catch (e) {
-      print('Error sending verification email: $e');
+      Logger.error('Error sending verification email: $e', e);
       // Even on error, show notifications so user can see OTP
-      _showUserNotifications(email, otp, context);
+      // Check if context is still mounted before using it
+      if (context?.mounted ?? false) {
+        _showUserNotifications(email, otp, context);
+      }
       return true; // Return true so user can still verify with OTP
     }
   }
@@ -84,11 +95,11 @@ Worker Management App Team
       
       // Send email
       final sendReport = await send(message, smtpServer);
-      print('Email sent successfully. Response: ${sendReport.toString()}');
+      Logger.info('Email sent successfully. Response: ${sendReport.toString()}');
       
       return true;
     } catch (e) {
-      print('Error sending real email: $e');
+      Logger.error('Error sending real email: $e', e);
       return false;
     }
   }
@@ -108,39 +119,42 @@ Worker Management App Team
       );
       
       // Also show in dialog to ensure visibility
-      if (context != null) {
+      final localContext = context;
+      if (localContext != null && localContext.mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext dialogContext) {
-              return AlertDialog(
-                title: const Text('OTP Sent', style: TextStyle(fontWeight: FontWeight.bold)),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('We\'ve sent a verification code to your email:'),
-                    const SizedBox(height: 10),
-                    Text(email, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 20),
-                    const Text('Your verification code is:', style: TextStyle(fontStyle: FontStyle.italic)),
-                    const SizedBox(height: 5),
-                    Text(otp, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
-                    const SizedBox(height: 10),
-                    const Text('Please check your email inbox and enter this code.', 
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('OK'),
+          if (localContext.mounted) {
+            showDialog(
+              context: localContext,
+              barrierDismissible: false,
+              builder: (BuildContext dialogContext) {
+                return AlertDialog(
+                  title: const Text('OTP Sent', style: TextStyle(fontWeight: FontWeight.bold)),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('We\'ve sent a verification code to your email:'),
+                      const SizedBox(height: 10),
+                      Text(email, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 20),
+                      const Text('Your verification code is:', style: TextStyle(fontStyle: FontStyle.italic)),
+                      const SizedBox(height: 5),
+                      Text(otp, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
+                      const SizedBox(height: 10),
+                      const Text('Please check your email inbox and enter this code.', 
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
                   ),
-                ],
-              );
-            },
-          );
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                );
+              },
+            );
+          }
         });
       }
     });

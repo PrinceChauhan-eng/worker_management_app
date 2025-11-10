@@ -22,6 +22,13 @@ class AttendanceProvider extends BaseProvider {
     notifyListeners();
   }
 
+  Future<void> loadAttendancesByWorkerIdAndDate(int workerId, String date) async {
+    setState(ViewState.busy);
+    _attendances = await _dbHelper.getAttendancesByWorkerIdAndDate(workerId, date);
+    setState(ViewState.idle);
+    notifyListeners();
+  }
+
   Future<bool> addAttendance(Attendance attendance) async {
     setState(ViewState.busy);
     try {

@@ -5,8 +5,10 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 import '../models/advance.dart';
 import '../models/user.dart';
+import '../models/notification.dart';
 import '../providers/advance_provider.dart';
 import '../providers/user_provider.dart';
+import '../providers/notification_provider.dart';
 import '../widgets/custom_app_bar.dart';
 
 class ManageAdvancesScreen extends StatefulWidget {
@@ -184,7 +186,7 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: statusColor.withOpacity(0.1),
+                    backgroundColor: statusColor.withValues(alpha: 0.1),
                     child: Icon(statusIcon, color: statusColor),
                   ),
                   const SizedBox(width: 12),
@@ -408,6 +410,7 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final adminId = userProvider.currentUser?.id ?? 0;
 
+      // Create updated advance with all existing properties preserved
       final updatedAdvance = Advance(
         id: advance.id,
         workerId: advance.workerId,
@@ -416,6 +419,7 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
         purpose: advance.purpose,
         note: advance.note,
         status: 'approved',
+        deductedFromSalaryId: advance.deductedFromSalaryId,
         approvedBy: adminId,
         approvedDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
       );
@@ -424,10 +428,32 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
       bool success = await advanceProvider.updateAdvance(updatedAdvance);
 
       if (success) {
+        // Send notification to worker
+        try {
+          final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+          final notification = NotificationModel(
+            title: 'Advance Request Approved',
+            message: 'Your advance request of ₹${advance.amount.toStringAsFixed(2)} for ${advance.purpose} has been approved.',
+            type: 'advance',
+            userId: worker.id!,
+            userRole: 'worker',
+            isRead: false,
+            createdAt: DateTime.now().toIso8601String(),
+            relatedId: advance.id?.toString(),
+          );
+          
+          await notificationProvider.addNotification(notification);
+        } catch (e) {
+          print('Error sending notification: $e');
+        }
+        
         Fluttertoast.showToast(
           msg: 'Advance approved successfully!',
           backgroundColor: Colors.green,
         );
+        
+        // Refresh the data
+        await _loadData();
       } else {
         Fluttertoast.showToast(
           msg: 'Failed to approve advance',
@@ -466,6 +492,7 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
     );
 
     if (confirmed == true) {
+      // Create updated advance with all existing properties preserved
       final updatedAdvance = Advance(
         id: advance.id,
         workerId: advance.workerId,
@@ -474,6 +501,9 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
         purpose: advance.purpose,
         note: advance.note,
         status: 'rejected',
+        deductedFromSalaryId: advance.deductedFromSalaryId,
+        approvedBy: advance.approvedBy,
+        approvedDate: advance.approvedDate,
       );
 
       final advanceProvider = Provider.of<AdvanceProvider>(context, listen: false);
@@ -484,6 +514,9 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
           msg: 'Advance rejected',
           backgroundColor: Colors.orange,
         );
+        
+        // Refresh the data
+        await _loadData();
       } else {
         Fluttertoast.showToast(
           msg: 'Failed to reject advance',

@@ -59,9 +59,15 @@ dependencies:
   mailer: ^6.1.0
   # Notification service
   flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.2
   # PDF generation and printing
   pdf: ^3.10.8
   printing: ^5.12.6
+  firebase_core: ^4.2.1
+  cloud_firestore: ^6.1.0
+  firebase_auth: ^6.1.2
+  # Security - Password hashing
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:

@@ -8,46 +8,51 @@ import 'providers/advance_provider.dart';
 import 'providers/salary_provider.dart';
 import 'providers/login_status_provider.dart';
 import 'providers/notification_provider.dart';
+import 'providers/hybrid_database_provider.dart';
 import 'services/notification_service.dart';
+import 'services/database_helper.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  print('Initializing app...');
-  
   // Initialize notification service
   await NotificationService().init();
   
   // Initialize session manager
   await SessionManager().init();
   
-  print('Initializing providers...');
+  // Force database upgrade to ensure all columns exist
+  try {
+    final dbHelper = DatabaseHelper();
+    await dbHelper.forceUpgrade();
+    print('Database upgrade completed successfully');
+  } catch (e) {
+    print('Error during database upgrade: $e');
+  }
+  
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) {
-          print('Creating UserProvider');
           return UserProvider();
         }),
         ChangeNotifierProvider(create: (_) {
-          print('Creating AttendanceProvider');
           return AttendanceProvider();
         }),
         ChangeNotifierProvider(create: (_) {
-          print('Creating AdvanceProvider');
           return AdvanceProvider();
         }),
         ChangeNotifierProvider(create: (_) {
-          print('Creating SalaryProvider');
           return SalaryProvider();
         }),
         ChangeNotifierProvider(create: (_) {
-          print('Creating LoginStatusProvider');
           return LoginStatusProvider();
         }),
         ChangeNotifierProvider(create: (_) {
-          print('Creating NotificationProvider');
           return NotificationProvider();
+        }),
+        ChangeNotifierProvider(create: (_) {
+          return HybridDatabaseProvider();
         }),
       ],
       child: const MyApp(),

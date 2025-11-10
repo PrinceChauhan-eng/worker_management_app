@@ -11,7 +11,6 @@ import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
 import '../utils/validators.dart';
 import '../services/whatsapp_service.dart';
-import 'login_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'worker_dashboard_screen.dart';
 import 'email_verification_screen.dart';
@@ -115,7 +114,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         width: 20,
         height: 20,
         child: CircularProgressIndicator(
-            strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.blue)),
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation(Colors.blue),
+        ),
       );
     }
 
@@ -145,8 +146,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   // SEND OTP
   Future<void> _sendOTP() async {
-    final phoneValidation =
-        Validators.validatePhoneNumber(_phoneController.text);
+    final phoneValidation = Validators.validatePhoneNumber(
+      _phoneController.text,
+    );
     if (phoneValidation != null) {
       Fluttertoast.showToast(msg: phoneValidation, backgroundColor: Colors.red);
       return;
@@ -156,15 +158,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     try {
       final service = WhatsAppService();
-      final success =
-          await service.sendOTP(_phoneController.text.trim(), context);
+      final success = await service.sendOTP(
+        _phoneController.text.trim(),
+        context,
+      );
 
       setState(() => _isLoading = false);
 
       if (success) {
         await _showOTPDialog();
       } else {
-        Fluttertoast.showToast(msg: 'Failed to send OTP', backgroundColor: Colors.red);
+        Fluttertoast.showToast(
+          msg: 'Failed to send OTP',
+          backgroundColor: Colors.red,
+        );
       }
     } catch (e) {
       setState(() => _isLoading = false);
@@ -181,11 +188,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
       barrierDismissible: false,
       builder: (_) {
         return AlertDialog(
-          title: Text('Verify Phone', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+          title: Text(
+            'Verify Phone',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Enter the OTP sent to your phone', style: GoogleFonts.poppins()),
+              Text(
+                'Enter the OTP sent to your phone',
+                style: GoogleFonts.poppins(),
+              ),
               const SizedBox(height: 20),
               CustomTextField(
                 controller: otpController,
@@ -205,20 +218,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
               onPressed: () {
                 final service = WhatsAppService();
                 final valid = service.verifyOTP(
-                    _phoneController.text.trim(), otpController.text.trim());
+                  _phoneController.text.trim(),
+                  otpController.text.trim(),
+                );
 
                 if (valid) {
                   setState(() => _isPhoneVerified = true);
                   Navigator.pop(context);
                   Fluttertoast.showToast(
-                      msg: 'Phone Verified!',
-                      backgroundColor: Colors.green);
+                    msg: 'Phone Verified!',
+                    backgroundColor: Colors.green,
+                  );
                 } else {
                   Fluttertoast.showToast(
-                      msg: 'Invalid OTP', backgroundColor: Colors.red);
+                    msg: 'Invalid OTP',
+                    backgroundColor: Colors.red,
+                  );
                 }
               },
-              child: Text('Verify', style: GoogleFonts.poppins(color: Colors.white)),
+              child: Text(
+                'Verify',
+                style: GoogleFonts.poppins(color: Colors.white),
+              ),
             ),
           ],
         );
@@ -230,7 +251,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   _registerWorker() async {
     if (!_isPhoneVerified) {
       Fluttertoast.showToast(
-          msg: 'Verify phone first', backgroundColor: Colors.orange);
+        msg: 'Verify phone first',
+        backgroundColor: Colors.orange,
+      );
       return;
     }
 
@@ -246,8 +269,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         final provider = Provider.of<UserProvider>(context, listen: false);
         await provider.loadWorkers();
 
-        final cleanPhone =
-            Validators.cleanPhoneNumber(_phoneController.text.trim());
+        final cleanPhone = Validators.cleanPhoneNumber(
+          _phoneController.text.trim(),
+        );
 
         final user = User(
           name: _nameController.text.trim(),
@@ -257,6 +281,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           role: _selectedRole,
           wage: double.tryParse(_wageController.text) ?? 0.0,
           joinDate: _joinDate,
+          designation: _designationController.text.trim(),
         );
 
         final success = await provider.addUser(user);
@@ -264,7 +289,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
         setState(() => _isLoading = false);
 
         if (success) {
-          Fluttertoast.showToast(msg: 'Registered Successfully!', backgroundColor: Colors.green);
+          Fluttertoast.showToast(
+            msg: 'Registered Successfully!',
+            backgroundColor: Colors.green,
+          );
 
           final authUser = await provider.authenticateUser(
             cleanPhone,
@@ -292,25 +320,41 @@ class _SignUpScreenState extends State<SignUpScreen> {
               }
             }
 
-            final session = SessionManager();
-            await session.setLoginSession(authUser.id!, authUser.role);
+            final sessionManager = SessionManager();
+            await sessionManager.addSession(authUser.id!, authUser.role);
 
             provider.setCurrentUser(authUser);
 
+            // Check if there are multiple active sessions
+            // List<Session> activeSessions = await sessionManager.getActiveSessions();
+            // if (activeSessions.length > 1) {
+            //   // If multiple sessions exist, go to session selection screen
+            //   Navigator.pushReplacement(
+            //     context,
+            //     MaterialPageRoute(builder: (context) => const SessionSelectionScreen()),
+            //   );
+            // } else {
+            // Single session, go directly to dashboard
             if (authUser.role == 'admin') {
               Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const AdminDashboardScreen()));
+                context,
+                MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+              );
             } else {
               Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const WorkerDashboardScreen()));
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const WorkerDashboardScreen(),
+                ),
+              );
             }
+            // }
           }
         } else {
-          Fluttertoast.showToast(msg: 'Registration Failed', backgroundColor: Colors.red);
+          Fluttertoast.showToast(
+            msg: 'Registration Failed',
+            backgroundColor: Colors.red,
+          );
         }
       } catch (e) {
         setState(() => _isLoading = false);
@@ -325,8 +369,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Create Account',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+          title: Text(
+            'Create Account',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
           centerTitle: true,
         ),
         body: SingleChildScrollView(
@@ -336,41 +382,51 @@ class _SignUpScreenState extends State<SignUpScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Create New Account',
-                    style: GoogleFonts.poppins(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E88E5))),
+                Text(
+                  'Create New Account',
+                  style: GoogleFonts.poppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E88E5),
+                  ),
+                ),
                 const SizedBox(height: 10),
-                Text('Please fill all details',
-                    style: GoogleFonts.poppins(fontSize: 16)),
+                Text(
+                  'Please fill all details',
+                  style: GoogleFonts.poppins(fontSize: 16),
+                ),
                 const SizedBox(height: 30),
 
                 // ROLE SELECTOR
-                Text('Select Role',
-                    style: GoogleFonts.poppins(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(
+                  'Select Role',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 10),
 
                 Container(
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(10)),
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   child: Row(
                     children: [
                       Expanded(
                         child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _selectedRole = 'worker'),
+                          onTap: () => setState(() => _selectedRole = 'worker'),
                           child: _roleButton(
-                              'Worker', _selectedRole == 'worker'),
+                            'Worker',
+                            _selectedRole == 'worker',
+                          ),
                         ),
                       ),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _selectedRole = 'admin'),
+                          onTap: () => setState(() => _selectedRole = 'admin'),
                           child: _roleButton('Admin', _selectedRole == 'admin'),
                         ),
                       ),
@@ -410,19 +466,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ElevatedButton.icon(
                             onPressed: _isPhoneVerified ? null : _sendOTP,
                             icon: Icon(
-                                _isPhoneVerified
-                                    ? Icons.check_circle
-                                    : Icons.verified_user,
-                                size: 18),
+                              _isPhoneVerified
+                                  ? Icons.check_circle
+                                  : Icons.verified_user,
+                              size: 18,
+                            ),
                             label: Text(
-                                _isPhoneVerified ? 'Verified' : 'Verify'),
+                              _isPhoneVerified ? 'Verified' : 'Verify',
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _isPhoneVerified
                                   ? Colors.green
                                   : Colors.blue,
                               foregroundColor: Colors.white,
                             ),
-                          )
+                          ),
                         ],
                       ),
 
@@ -468,8 +526,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           child: CustomTextField(
                             labelText: 'Joining Date',
                             prefixIcon: Icons.calendar_today,
-                            controller:
-                                TextEditingController(text: _joinDate),
+                            controller: TextEditingController(text: _joinDate),
                             validator: (v) =>
                                 v == null || v.isEmpty ? 'Select date' : null,
                           ),
@@ -484,9 +541,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         prefixIcon: Icons.lock,
                         obscureText: _isObscure,
                         suffixIcon: IconButton(
-                          icon: Icon(_isObscure
-                              ? Icons.visibility_off
-                              : Icons.visibility),
+                          icon: Icon(
+                            _isObscure
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
                           onPressed: () =>
                               setState(() => _isObscure = !_isObscure),
                         ),
@@ -501,11 +560,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         prefixIcon: Icons.lock,
                         obscureText: _isConfirmObscure,
                         suffixIcon: IconButton(
-                          icon: Icon(_isConfirmObscure
-                              ? Icons.visibility_off
-                              : Icons.visibility),
+                          icon: Icon(
+                            _isConfirmObscure
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
                           onPressed: () => setState(
-                              () => _isConfirmObscure = !_isConfirmObscure),
+                            () => _isConfirmObscure = !_isConfirmObscure,
+                          ),
                         ),
                         validator: (value) {
                           if (value!.isEmpty) return 'Confirm password';
@@ -526,7 +588,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                     ],
                   ),
-                )
+                ),
               ],
             ),
           ),
@@ -543,11 +605,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Center(
-        child: Text(text,
-            style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: active ? Colors.white : Colors.grey[700],
-                fontWeight: FontWeight.w600)),
+        child: Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            color: active ? Colors.white : Colors.grey[700],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

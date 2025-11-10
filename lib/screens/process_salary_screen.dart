@@ -12,7 +12,6 @@ import '../providers/salary_provider.dart';
 import '../providers/advance_provider.dart';
 import '../providers/login_status_provider.dart';
 import '../providers/notification_provider.dart';
-import '../services/notification_service.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/salary_slip_dialog.dart';
@@ -167,303 +166,310 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => DraggableScrollableSheet(
-        expand: false,
+        expand: true, // Make sure it expands to full screen
+        initialChildSize: 0.95, // Start at 95% of screen height for better visibility
+        minChildSize: 0.5, // Minimum 50% of screen height
+        maxChildSize: 1.0, // Maximum 100% of screen height
         builder: (context, scrollController) {
           return Container(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Salary Preview',
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                
-                // Worker Info
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: SingleChildScrollView(
+              controller: scrollController,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        _selectedWorker!.name,
+                        'Salary Preview',
                         style: GoogleFonts.poppins(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                        'Month: ${DateFormat('MMMM yyyy').format(DateTime.parse('$_selectedMonth-01'))}',
-                        style: GoogleFonts.poppins(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 20),
-                
-                // Salary Breakdown
-                Text(
-                  'Earnings',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _buildPreviewItem('Present Days', '$_presentDays days'),
-                _buildPreviewItem('Daily Wage', '₹${_selectedWorker!.wage.toStringAsFixed(2)}'),
-                _buildPreviewItem('Gross Salary', '₹${_grossSalary!.toStringAsFixed(2)}', isBold: true),
-                
-                const SizedBox(height: 20),
-                Text(
-                  'Deductions',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                
-                if (_approvedAdvances.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(
-                      'No advances taken this month',
-                      style: GoogleFonts.poppins(
-                        color: Colors.grey[600],
-                        fontStyle: FontStyle.italic,
-                      ),
+                  const SizedBox(height: 20),
+                  
+                  // Worker Info
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                  )
-                else ...[
-                  ..._approvedAdvances.map((adv) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                adv.purpose ?? 'Advance',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              if (adv.note != null && adv.note!.isNotEmpty)
+                        Text(
+                          _selectedWorker!.name,
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          'Month: ${DateFormat('MMMM yyyy').format(DateTime.parse('$_selectedMonth-01'))}',
+                          style: GoogleFonts.poppins(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Salary Breakdown
+                  Text(
+                    'Earnings',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildPreviewItem('Present Days', '$_presentDays days'),
+                  _buildPreviewItem('Daily Wage', '₹${_selectedWorker!.wage.toStringAsFixed(2)}'),
+                  _buildPreviewItem('Gross Salary', '₹${_grossSalary!.toStringAsFixed(2)}', isBold: true),
+                  
+                  const SizedBox(height: 20),
+                  Text(
+                    'Deductions',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  if (_approvedAdvances.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        'No advances taken this month',
+                        style: GoogleFonts.poppins(
+                          color: Colors.grey[600],
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    )
+                  else ...[
+                    ..._approvedAdvances.map((adv) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Text(
-                                  adv.note!,
+                                  adv.purpose ?? 'Advance',
                                   style: GoogleFonts.poppins(
-                                    fontSize: 11,
-                                    color: Colors.grey[600],
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                            ],
+                                if (adv.note != null && adv.note!.isNotEmpty)
+                                  Text(
+                                    adv.note!,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 11,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '₹${adv.amount.toStringAsFixed(2)}',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+                    const Divider(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Total Advances',
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
                           ),
                         ),
                         Text(
-                          '₹${adv.amount.toStringAsFixed(2)}',
+                          '₹${_totalAdvance!.toStringAsFixed(2)}',
                           style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.bold,
                             color: Colors.orange.shade700,
                           ),
                         ),
                       ],
                     ),
-                  )),
-                  const Divider(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Total Advances',
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-                        ),
+                  ],
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Net Salary with enhanced styling
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: _netSalary! >= 0
+                            ? [Colors.green.shade400, Colors.green.shade600]
+                            : [Colors.red.shade400, Colors.red.shade600],
                       ),
-                      Text(
-                        '₹${_totalAdvance!.toStringAsFixed(2)}',
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                
-                const SizedBox(height: 20),
-                
-                // Net Salary with enhanced styling
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: _netSalary! >= 0
-                          ? [Colors.green.shade400, Colors.green.shade600]
-                          : [Colors.red.shade400, Colors.red.shade600],
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Net Salary',
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Net Salary',
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '₹${_netSalary!.toStringAsFixed(2)}',
                           style: GoogleFonts.poppins(
-                            fontSize: 18,
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
                         ),
-                      ),
-                      Text(
-                        '₹${_netSalary!.toStringAsFixed(2)}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (_netSalary! < 0) ...[
-                  const SizedBox(height: 15),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
+                      ],
                     ),
+                  ),
+
+                  if (_netSalary! < 0) ...[
+                    const SizedBox(height: 15),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber, color: Colors.red.shade700),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Negative balance of ₹${(-_netSalary!).toStringAsFixed(2)} will be carried forward to next month',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: Colors.red.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  
+                  const SizedBox(height: 30),
+                  
+                  // Action Buttons with fixed layout
+                  SizedBox(
+                    width: double.infinity,
                     child: Row(
                       children: [
-                        Icon(Icons.warning_amber, color: Colors.red.shade700),
+                        Expanded(
+                          child: SizedBox(
+                            height: 45,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: OutlinedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              child: Text(
+                                'Cancel',
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text(
-                            'Negative balance of ₹${(-_netSalary!).toStringAsFixed(2)} will be carried forward to next month',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: Colors.red.shade700,
+                          child: SizedBox(
+                            height: 45,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _actuallyProcessSalary();
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4CAF50),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                              ),
+                              child: Text(
+                                'Process',
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  // Preview Options Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showPreviewOptions();
+                      },
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        side: const BorderSide(color: Color(0xFF1E88E5)),
+                      ),
+                      child: Text(
+                        'Preview Options',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1E88E5),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20), // Add some padding at the bottom
                 ],
-                
-                const SizedBox(height: 30),
-                
-                // Action Buttons with fixed layout
-                SizedBox(
-                  width: double.infinity,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 45,
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            child: Text(
-                              'Cancel',
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: SizedBox(
-                          height: 45,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _actuallyProcessSalary();
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4CAF50),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                            ),
-                            child: Text(
-                              'Process',
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // Preview Options Button
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _showPreviewOptions();
-                    },
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      side: const BorderSide(color: Color(0xFF1E88E5)),
-                    ),
-                    child: Text(
-                      'Preview Options',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E88E5),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           );
         },
@@ -476,7 +482,7 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
     // Create a temporary salary object for preview
     final previewSalary = Salary(
       workerId: _selectedWorker!.id!,
-      month: DateFormat('MMMM').format(DateTime.parse('$_selectedMonth-01')),
+      month: _selectedMonth,
       year: _selectedMonth.split('-')[0],
       totalDays: _totalDays ?? 0,
       presentDays: _presentDays ?? 0,
@@ -527,16 +533,44 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
 
   // Show detailed preview with send and download options
   Future<void> _showDetailedPreview(Salary salary, List<Advance> advances) async {
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return SalarySlipDialog(
-          salary: salary,
-          worker: _selectedWorker!,
-          advances: advances,
-        );
-      },
-    );
+    // Check if a salary already exists for this worker and month
+    final salaryProvider = Provider.of<SalaryProvider>(context, listen: false);
+    Salary? existingSalary;
+    
+    try {
+      existingSalary = await salaryProvider.getSalaryByWorkerIdAndMonth(
+        _selectedWorker!.id!, 
+        _selectedMonth
+      );
+    } catch (e) {
+      print('Error checking existing salary: $e');
+    }
+    
+    if (existingSalary != null) {
+      // Show existing salary details
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return SalarySlipDialog(
+            salary: existingSalary!,
+            worker: _selectedWorker!,
+            advances: advances,
+          );
+        },
+      );
+    } else {
+      // Show preview salary
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return SalarySlipDialog(
+            salary: salary,
+            worker: _selectedWorker!,
+            advances: advances,
+          );
+        },
+      );
+    }
   }
 
   Widget _buildPreviewItem(String label, String value, {bool isBold = false, bool isNegative = false}) {
@@ -577,6 +611,38 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
   }
 
   Future<void> _actuallyProcessSalary() async {
+    print('=== PROCESSING SALARY ===');
+    
+    // Validate required data before proceeding
+    if (_selectedWorker == null) {
+      print('ERROR: No worker selected');
+      Fluttertoast.showToast(
+        msg: 'Please select a worker',
+        backgroundColor: Colors.red,
+      );
+      return;
+    }
+    
+    print('Selected worker: ${_selectedWorker!.name} (ID: ${_selectedWorker!.id})');
+    
+    if (_netSalary == null || _grossSalary == null || _totalAdvance == null) {
+      print('ERROR: Salary not calculated');
+      Fluttertoast.showToast(
+        msg: 'Please calculate salary first',
+        backgroundColor: Colors.red,
+      );
+      return;
+    }
+
+    print('Salary data:');
+    print('  Net Salary: $_netSalary');
+    print('  Gross Salary: $_grossSalary');
+    print('  Total Advance: $_totalAdvance');
+    print('  Total Days: $_totalDays');
+    print('  Present Days: $_presentDays');
+    print('  Absent Days: $_absentDays');
+    print('  Month: $_selectedMonth');
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -646,6 +712,7 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
     );
 
     if (confirmed == true) {
+      print('User confirmed salary processing');
       setState(() {
         _isLoading = true;
       });
@@ -653,12 +720,23 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
       try {
         final salaryProvider = Provider.of<SalaryProvider>(context, listen: false);
         final advanceProvider = Provider.of<AdvanceProvider>(context, listen: false);
-        final userProvider = Provider.of<UserProvider>(context, listen: false);
 
+        // Validate required data
+        if (_selectedWorker == null || 
+            _totalDays == null || 
+            _presentDays == null || 
+            _absentDays == null || 
+            _grossSalary == null || 
+            _totalAdvance == null || 
+            _netSalary == null) {
+          throw Exception('Missing required salary data');
+        }
+
+        print('Creating salary record...');
         // Create salary record
         final salary = Salary(
           workerId: _selectedWorker!.id!,
-          month: DateFormat('MMMM').format(DateTime.parse('$_selectedMonth-01')),
+          month: _selectedMonth, // Store the formatted month (yyyy-MM) instead of just the name
           year: _selectedMonth.split('-')[0],
           totalDays: _totalDays!,
           presentDays: _presentDays!,
@@ -670,34 +748,94 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
           paidDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
         );
 
-        // Save salary
-        final success = await salaryProvider.addSalary(salary);
+        print('Salary object created: ${salary.toMap()}');
+        
+        // Check if salary already exists for this worker and month
+        Salary? existingSalary;
+        try {
+          existingSalary = await salaryProvider.getSalaryByWorkerIdAndMonth(
+            _selectedWorker!.id!, 
+            _selectedMonth
+          );
+        } catch (e) {
+          print('Error checking existing salary: $e');
+        }
+        
+        bool success;
+        if (existingSalary != null) {
+          // Update existing salary
+          print('Updating existing salary with ID: ${existingSalary.id}');
+          final updatedSalary = Salary(
+            id: existingSalary.id,
+            workerId: salary.workerId,
+            month: salary.month,
+            year: salary.year,
+            totalDays: salary.totalDays,
+            presentDays: salary.presentDays,
+            absentDays: salary.absentDays,
+            grossSalary: salary.grossSalary,
+            totalAdvance: salary.totalAdvance,
+            netSalary: salary.netSalary,
+            paid: salary.paid,
+            paidDate: salary.paidDate,
+          );
+          success = await salaryProvider.updateSalary(updatedSalary);
+          print('Salary update result: $success');
+        } else {
+          // Save new salary
+          print('Saving new salary...');
+          success = await salaryProvider.addSalary(salary);
+          print('Salary save result: $success');
+        }
 
         if (success) {
-          // Reload salaries to get the ID of the newly created salary
-          await salaryProvider.loadSalaries();
-          final savedSalary = salaryProvider.salaries.firstWhere(
-            (s) => s.workerId == salary.workerId && 
-                   s.month == salary.month && 
-                   s.year == salary.year,
-            orElse: () => salary,
-          );
+          print('Salary processed successfully');
+          
+          // Instead of trying to find the salary in the list, let's get it directly from the database
+          Salary? savedSalary;
+          try {
+            print('Getting saved salary directly from database...');
+            final salaryProvider = Provider.of<SalaryProvider>(context, listen: false);
+            savedSalary = await salaryProvider.getSalaryByWorkerIdAndMonth(
+              _selectedWorker!.id!, 
+              _selectedMonth
+            );
+            
+            if (savedSalary != null) {
+              print('Found saved salary with ID: ${savedSalary?.id}');
+            } else {
+              print('No saved salary found in database');
+            }
+          } catch (e) {
+            // If there's any error, use the original salary object
+            savedSalary = salary;
+            print('Error retrieving saved salary from database: $e');
+            print('Using original salary object');
+          }
           
           // Mark advances as deducted
+          print('Processing ${_approvedAdvances.length} approved advances');
           for (var advance in _approvedAdvances) {
-            final updatedAdvance = Advance(
-              id: advance.id,
-              workerId: advance.workerId,
-              amount: advance.amount,
-              date: advance.date,
-              purpose: advance.purpose,
-              note: advance.note,
-              status: 'deducted',
-              approvedBy: advance.approvedBy,
-              approvedDate: advance.approvedDate,
-              deductedFromSalaryId: savedSalary.id,
-            );
-            await advanceProvider.updateAdvance(updatedAdvance);
+            try {
+              print('Updating advance ID: ${advance.id}');
+              final updatedAdvance = Advance(
+                id: advance.id,
+                workerId: advance.workerId,
+                amount: advance.amount,
+                date: advance.date,
+                purpose: advance.purpose,
+                note: advance.note,
+                status: 'deducted',
+                approvedBy: advance.approvedBy,
+                approvedDate: advance.approvedDate,
+                deductedFromSalaryId: savedSalary?.id, // Handle nullable savedSalary
+              );
+              await advanceProvider.updateAdvance(updatedAdvance);
+              print('Advance ${advance.id} updated successfully');
+            } catch (e) {
+              print('Error updating advance ${advance.id}: $e');
+              // Continue with other advances even if one fails
+            }
           }
 
           setState(() {
@@ -705,18 +843,25 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
           });
 
           // Show salary slip dialog with send and download options
-          _showSalarySlipDialog(savedSalary, _approvedAdvances);
+          if (savedSalary != null) {
+            print('Showing salary slip dialog');
+            _showSalarySlipDialog(savedSalary, _approvedAdvances);
 
-          // Send notifications
-          _sendSalaryNotifications(savedSalary);
+            // Send notifications
+            print('Sending salary notifications');
+            _sendSalaryNotifications(savedSalary);
+          }
 
           // Reset form
+          print('Resetting form');
           setState(() {
             _selectedWorker = null;
             _resetCalculation();
           });
+          print('Salary processing completed successfully');
 
         } else {
+          print('ERROR: Failed to process salary');
           setState(() {
             _isLoading = false;
           });
@@ -726,99 +871,82 @@ class _ProcessSalaryScreenState extends State<ProcessSalaryScreen> {
           );
         }
 
-      } catch (e) {
+      } catch (e, stackTrace) {
         setState(() {
           _isLoading = false;
         });
+        print('!!! ERROR PROCESSING SALARY !!!');
+        print('Error: $e');
+        print('Stack trace: $stackTrace');
+        
+        String errorMessage = 'Error processing salary';
+        if (e.toString().contains('UNIQUE constraint failed')) {
+          errorMessage = 'Salary already processed for this worker and month. Use "View Details" to update existing record.';
+        } else if (e.toString().contains('database is locked')) {
+          errorMessage = 'Database is busy, please try again';
+        } else {
+          errorMessage = 'Error processing salary: ${e.toString().substring(0, 50)}...';
+        }
+        
         Fluttertoast.showToast(
-          msg: 'Error processing salary: $e',
+          msg: errorMessage,
           backgroundColor: Colors.red,
         );
       }
+    } else {
+      print('User cancelled salary processing');
     }
   }
 
   // Show salary slip dialog with send and download options
   Future<void> _showSalarySlipDialog(Salary salary, List<Advance> advances) async {
-    // Get worker details
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final worker = await userProvider.getUser(salary.workerId);
-    
-    if (worker == null) {
+    try {
+      // Get worker details
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final worker = await userProvider.getUser(salary.workerId);
+      
+      if (worker == null) {
+        Fluttertoast.showToast(
+          msg: 'Failed to load worker details',
+          backgroundColor: Colors.red,
+        );
+        return;
+      }
+      
+      // Show the salary slip in a bottom sheet for better visibility
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) => DraggableScrollableSheet(
+          expand: true,
+          initialChildSize: 0.9,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return Container(
+              padding: const EdgeInsets.all(20),
+              child: SalarySlipDialog(
+                salary: salary,
+                worker: worker,
+                advances: advances,
+              ),
+            );
+          },
+        ),
+      );
+    } catch (e, stackTrace) {
+      print('Error showing salary slip dialog: $e');
+      print('Stack trace: $stackTrace');
       Fluttertoast.showToast(
-        msg: 'Failed to load worker details',
+        msg: 'Error showing salary slip: $e',
         backgroundColor: Colors.red,
       );
-      return;
-    }
-    
-    // Show the salary slip dialog with send and download options
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return SalarySlipDialog(
-          salary: salary,
-          worker: worker,
-          advances: advances,
-        );
-      },
-    );
-  }
-
-  // Show detailed salary slip with send and download options
-  Future<void> _showDetailedSalarySlip(Salary salary, User worker, List<Advance> advances) async {
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return SalarySlipDialog(
-          salary: salary,
-          worker: worker,
-          advances: advances,
-        );
-      },
-    );
-  }
-
-  // Generate and send salary slip to worker
-  Future<void> _generateAndSendSalarySlip(Salary salary) async {
-    try {
-      // In a real app, this would send an email or WhatsApp message
-      // For now, we'll just show a success message
-      print('Salary slip generated for worker ID: ${salary.workerId}');
-      if (salary.netSalary != null) {
-        print('Net Salary: ₹${salary.netSalary!.toStringAsFixed(2)}');
-      }
-      
-      // You could implement email or WhatsApp integration here
-      // For example, using the existing WhatsApp service:
-      /*
-      final whatsappService = WhatsAppService();
-      final worker = await Provider.of<UserProvider>(context, listen: false)
-          .getUser(salary.workerId);
-      
-      if (worker != null) {
-        final message = '''
-Salary Slip
-------------
-Worker: ${worker.name}
-Month: ${salary.month} ${salary.year}
-Present Days: ${salary.presentDays}/${salary.totalDays}
-Gross Salary: ₹${salary.grossSalary.toStringAsFixed(2)}
-Advances Deducted: ₹${salary.totalAdvance.toStringAsFixed(2)}
-Net Salary: ₹${salary.netSalary.toStringAsFixed(2)}
-Paid Date: ${salary.paidDate}
-        ''';
-        
-        // Show instructions for sending via WhatsApp
-        // In a real implementation, you would use:
-        // await whatsappService.sendOTP(worker.phone, context);
-      }
-      */
-    } catch (e) {
-      print('Error generating salary slip: $e');
-      rethrow;
     }
   }
+
 
   Widget _buildSummaryRow(String label, String value, {bool isTotal = false}) {
     return Padding(
@@ -1306,7 +1434,6 @@ Paid Date: ${salary.paidDate}
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
-      final notificationService = NotificationService();
       
       // Get worker details
       final worker = await userProvider.getUser(salary.workerId);

@@ -11,6 +11,7 @@ import '../models/advance.dart';
 import '../models/salary.dart';
 import '../models/login_status.dart';
 import '../models/notification.dart';
+import '../utils/password_utils.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -18,33 +19,36 @@ class DatabaseHelper {
   DatabaseHelper._internal();
 
   static Database? _db;
-  static bool _initialized = false;
+
+  // Increment database version to 6 to add pdfUrl column to salary table
+  final int _version = 6;
 
   Future<Database> get db async {
     if (_db != null) return _db!;
-    if (!_initialized) {
-      print('Database not initialized, initializing now...');
-      await initDB();
-    }
+    _db = await _initDB();
     return _db!;
   }
 
-  Future<Database> initDB() async {
-    if (_initialized && _db != null) {
+  // Public method to ensure database is initialized
+  Future<void> initDB() async {
+    await db;
+  }
+
+  Future<Database> _initDB() async {
+    if (_db != null) {
       print('Database already initialized');
       return _db!;
     }
-    
+
     try {
       print('=== INITIALIZING DATABASE ===');
-      print('Current state - Initialized: $_initialized, DB exists: ${_db != null}');
       String path;
-      
+
       if (kIsWeb) {
         // For web, use a simple path and initialize sqflite
         print('Running on web, initializing sqflite for web');
         // Change default factory on the web
-        databaseFactory = databaseFactoryFfiWeb;
+        databaseFactory = databaseFactoryFfiWeb; // Enable web support
         path = 'worker_management.db';
         print('Using path: $path');
       } else {
@@ -54,17 +58,18 @@ class DatabaseHelper {
         path = join(documentsDirectory.path, 'worker_management.db');
         print('Database path: $path');
       }
-      
+
       print('Opening database with factory: $databaseFactory');
       _db = await openDatabase(
-        path, 
-        version: 3, // Updated version for all schema changes
+        path,
+        version: _version, // Updated version for all schema changes
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
         onOpen: _onOpen,
       );
-      _initialized = true;
-      print('Database opened successfully with version: ${await _db!.getVersion()}');
+      print(
+        'Database opened successfully with version: ${await _db!.getVersion()}',
+      );
       return _db!;
     } catch (e, stackTrace) {
       print('Error initializing database: $e');
@@ -115,29 +120,49 @@ class DatabaseHelper {
       ''');
       print('Attendance table created');
 
-      // Create advance table
+      // Create advance table with all required columns
       await db.execute('''
         CREATE TABLE advance (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           workerId INTEGER,
           amount REAL,
-          date TEXT
+          date TEXT,
+          purpose TEXT,
+          note TEXT,
+          status TEXT DEFAULT 'pending',
+          deductedFromSalaryId INTEGER,
+          approvedBy INTEGER,
+          approvedDate TEXT
         )
       ''');
       print('Advance table created');
 
-      // Create salary table
+      // Create salary table with all required columns
       await db.execute('''
         CREATE TABLE salary (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           workerId INTEGER,
           month TEXT,
+          year TEXT,
           totalDays INTEGER,
+          presentDays INTEGER,
+          absentDays INTEGER,
+          grossSalary REAL,
+          totalAdvance REAL,
+          netSalary REAL,
           totalSalary REAL,
-          paid INTEGER
+          paid INTEGER,
+          paidDate TEXT,
+          pdfUrl TEXT
         )
       ''');
       print('Salary table created');
+
+      // Add unique index to prevent duplicate salary records for the same worker and month
+      await db.execute('''
+        CREATE UNIQUE INDEX idx_worker_month ON salary(workerId, month)
+      ''');
+      print('Unique index created on salary table');
 
       // Create login_status table
       await db.execute('''
@@ -151,6 +176,12 @@ class DatabaseHelper {
         )
       ''');
       print('Login status table created');
+
+      // Add unique index to prevent duplicate login status records for the same worker on the same date
+      await db.execute('''
+        CREATE UNIQUE INDEX idx_worker_date ON login_status(workerId, date)
+      ''');
+      print('Unique index created on login_status table');
 
       // Create login history table
       await db.execute('''
@@ -188,15 +219,17 @@ class DatabaseHelper {
       print('Inserting default admin user...');
       await db.insert('users', {
         'name': 'Admin',
-        'phone': '8104246218',  // Updated to match project memory
-        'password': 'admin123',
+        'phone': '8104246218', // Updated to match project memory
+        'password': PasswordUtils.hashPassword(
+          'admin123',
+        ), // Hash password before storing
         'role': 'admin',
         'wage': 0.0,
         'joinDate': DateTime.now().toString(),
         'designation': 'System Administrator', // Add designation for admin
       });
       print('Default admin user inserted successfully');
-      
+
       print('Database created successfully with default admin user');
     } catch (e, stackTrace) {
       print('Error creating database tables: $e');
@@ -206,11 +239,14 @@ class DatabaseHelper {
   }
 
   // Database upgrade method
-  void _onUpgrade(Database db, int oldVersion, int newVersion) async {
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     print('Upgrading database from version $oldVersion to $newVersion');
     
     try {
+      print('Current database version: $oldVersion, target version: $newVersion');
+      
       if (oldVersion < 2) {
+        print('Upgrading to version 2: Adding profile features to users table');
         // Add new columns to users table for profile features
         try {
           await db.execute('ALTER TABLE users ADD COLUMN profilePhoto TEXT');
@@ -241,51 +277,34 @@ class DatabaseHelper {
         }
         
         try {
-          await db.execute('ALTER TABLE users ADD COLUMN emailVerified INTEGER DEFAULT 0');
+          await db.execute(
+            'ALTER TABLE users ADD COLUMN emailVerified INTEGER DEFAULT 0',
+          );
           print('Added emailVerified column to users table');
         } catch (e) {
           print('emailVerified column may already exist: $e');
         }
         
         try {
-          await db.execute('ALTER TABLE users ADD COLUMN emailVerificationCode TEXT');
+          await db.execute(
+            'ALTER TABLE users ADD COLUMN emailVerificationCode TEXT',
+          );
           print('Added emailVerificationCode column to users table');
         } catch (e) {
           print('emailVerificationCode column may already exist: $e');
         }
         
-        // Add location fields to users table
         try {
-          await db.execute('ALTER TABLE users ADD COLUMN workLocationLatitude REAL');
-          print('Added workLocationLatitude column to users table');
+          await db.execute('ALTER TABLE users ADD COLUMN designation TEXT');
+          print('Added designation column to users table');
         } catch (e) {
-          print('workLocationLatitude column may already exist: $e');
-        }
-        
-        try {
-          await db.execute('ALTER TABLE users ADD COLUMN workLocationLongitude REAL');
-          print('Added workLocationLongitude column to users table');
-        } catch (e) {
-          print('workLocationLongitude column may already exist: $e');
-        }
-        
-        try {
-          await db.execute('ALTER TABLE users ADD COLUMN workLocationAddress TEXT');
-          print('Added workLocationAddress column to users table');
-        } catch (e) {
-          print('workLocationAddress column may already exist: $e');
-        }
-        
-        try {
-          await db.execute('ALTER TABLE users ADD COLUMN locationRadius REAL DEFAULT 100.0');
-          print('Added locationRadius column to users table');
-        } catch (e) {
-          print('locationRadius column may already exist: $e');
+          print('designation column may already exist: $e');
         }
       }
       
       if (oldVersion < 3) {
-        // Add new fields to advance table
+        print('Upgrading to version 3: Adding advance request features');
+        // Add columns to advance table
         try {
           await db.execute('ALTER TABLE advance ADD COLUMN purpose TEXT');
           print('Added purpose column to advance table');
@@ -301,14 +320,18 @@ class DatabaseHelper {
         }
         
         try {
-          await db.execute('ALTER TABLE advance ADD COLUMN status TEXT DEFAULT "pending"');
+          await db.execute(
+            'ALTER TABLE advance ADD COLUMN status TEXT DEFAULT "pending"',
+          );
           print('Added status column to advance table');
         } catch (e) {
           print('status column may already exist: $e');
         }
         
         try {
-          await db.execute('ALTER TABLE advance ADD COLUMN deductedFromSalaryId INTEGER');
+          await db.execute(
+            'ALTER TABLE advance ADD COLUMN deductedFromSalaryId INTEGER',
+          );
           print('Added deductedFromSalaryId column to advance table');
         } catch (e) {
           print('deductedFromSalaryId column may already exist: $e');
@@ -327,8 +350,11 @@ class DatabaseHelper {
         } catch (e) {
           print('approvedDate column may already exist: $e');
         }
-        
-        // Add new fields to salary table
+      }
+      
+      if (oldVersion < 4) {
+        print('Upgrading to version 4: Adding salary features');
+        // Add columns to salary table
         try {
           await db.execute('ALTER TABLE salary ADD COLUMN year TEXT');
           print('Added year column to salary table');
@@ -379,186 +405,78 @@ class DatabaseHelper {
         }
       }
       
+      // Add pdfUrl column to salary table (new in version 5)
+      if (oldVersion < 5) {
+        print('Upgrading to version 5: Adding PDF features');
+        try {
+          await db.execute('ALTER TABLE salary ADD COLUMN pdfUrl TEXT');
+          print('Added pdfUrl column to salary table');
+        } catch (e) {
+          print('pdfUrl column may already exist: $e');
+        }
+      }
+      
+      // Add unique constraint to salary table (new in version 6)
+      if (oldVersion < 6) {
+        print('Upgrading to version 6: Adding unique constraints');
+        try {
+          // First, remove any existing duplicate salary records to avoid constraint violation
+          print('Cleaning up duplicate salary records...');
+          await db.rawQuery('''
+            DELETE FROM salary 
+            WHERE rowid NOT IN (
+              SELECT MIN(rowid) 
+              FROM salary 
+              GROUP BY workerId, month
+            )
+          ''');
+          print('Duplicate salary records removed');
+          
+          // Add unique index to prevent duplicate salary records for the same worker and month
+          await db.execute('''
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_month ON salary(workerId, month)
+          ''');
+          print('Unique index created on salary table');
+        } catch (e) {
+          print('Error adding unique constraint to salary table: $e');
+        }
+      }
+      
       print('Database upgrade completed successfully');
     } catch (e, stackTrace) {
       print('Error upgrading database: $e');
       print('Stack trace: $stackTrace');
-      rethrow;
     }
   }
 
   // Database open callback to verify and add missing columns
   void _onOpen(Database db) async {
-    print('Database opened successfully');
+    print('Database opened, checking default admin user...');
     
     try {
-      // Verify tables exist
-      var tables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table'"
+      // Check if default admin user exists
+      var adminUsers = await db.query(
+        'users',
+        where: 'phone = ?',
+        whereArgs: ['8104246218'],
       );
-      print('Existing tables: ${tables.map((t) => t['name']).toList()}');
       
-      // Ensure default admin user exists
-      try {
-        var adminUsers = await db.query('users', where: 'phone = ?', whereArgs: ['8104246218']);
-        if (adminUsers.isEmpty) {
-          print('No default admin user found, creating one...');
-          await db.insert('users', {
-            'name': 'Admin',
-            'phone': '8104246218',
-            'password': 'admin123',
-            'role': 'admin',
-            'wage': 0.0,
-            'joinDate': DateTime.now().toString(),
-            'designation': 'System Administrator', // Add designation for admin
-          });
-          print('Default admin user created successfully');
-        } else {
-          print('Default admin user already exists');
-        }
-      } catch (e) {
-        print('Error checking/creating default admin user: $e');
-      }
-      
-      // Verify and add missing columns to users table if needed
-      try {
-        var userColumns = await db.rawQuery("PRAGMA table_info(users)");
-        var columnNames = userColumns.map((c) => c['name'] as String).toList();
-        print('Users table columns: $columnNames');
-        
-        // Check and add missing columns
-        if (!columnNames.contains('profilePhoto')) {
-          await db.execute('ALTER TABLE users ADD COLUMN profilePhoto TEXT');
-          print('Added profilePhoto column to users table');
-        }
-        if (!columnNames.contains('idProof')) {
-          await db.execute('ALTER TABLE users ADD COLUMN idProof TEXT');
-          print('Added idProof column to users table');
-        }
-        if (!columnNames.contains('address')) {
-          await db.execute('ALTER TABLE users ADD COLUMN address TEXT');
-          print('Added address column to users table');
-        }
-        if (!columnNames.contains('email')) {
-          await db.execute('ALTER TABLE users ADD COLUMN email TEXT');
-          print('Added email column to users table');
-        }
-        if (!columnNames.contains('emailVerified')) {
-          await db.execute('ALTER TABLE users ADD COLUMN emailVerified INTEGER DEFAULT 0');
-          print('Added emailVerified column to users table');
-        }
-        if (!columnNames.contains('emailVerificationCode')) {
-          await db.execute('ALTER TABLE users ADD COLUMN emailVerificationCode TEXT');
-          print('Added emailVerificationCode column to users table');
-        }
-        if (!columnNames.contains('designation')) {
-          await db.execute('ALTER TABLE users ADD COLUMN designation TEXT');
-          print('Added designation column to users table');
-        }
-      } catch (e) {
-        print('Error checking/adding columns to users table: $e');
-      }
-      
-      // Verify and add missing columns to advance table if needed
-      try {
-        var advanceColumns = await db.rawQuery("PRAGMA table_info(advance)");
-        var columnNames = advanceColumns.map((c) => c['name'] as String).toList();
-        print('Advance table columns: $columnNames');
-        
-        // Check and add missing columns
-        if (!columnNames.contains('purpose')) {
-          await db.execute('ALTER TABLE advance ADD COLUMN purpose TEXT');
-          print('Added purpose column to advance table');
-        }
-        if (!columnNames.contains('note')) {
-          await db.execute('ALTER TABLE advance ADD COLUMN note TEXT');
-          print('Added note column to advance table');
-        }
-        if (!columnNames.contains('status')) {
-          await db.execute('ALTER TABLE advance ADD COLUMN status TEXT DEFAULT "pending"');
-          print('Added status column to advance table');
-        }
-        if (!columnNames.contains('deductedFromSalaryId')) {
-          await db.execute('ALTER TABLE advance ADD COLUMN deductedFromSalaryId INTEGER');
-          print('Added deductedFromSalaryId column to advance table');
-        }
-        if (!columnNames.contains('approvedBy')) {
-          await db.execute('ALTER TABLE advance ADD COLUMN approvedBy INTEGER');
-          print('Added approvedBy column to advance table');
-        }
-        if (!columnNames.contains('approvedDate')) {
-          await db.execute('ALTER TABLE advance ADD COLUMN approvedDate TEXT');
-          print('Added approvedDate column to advance table');
-        }
-      } catch (e) {
-        print('Error checking/adding columns to advance table: $e');
-      }
-      
-      // Verify and add missing columns to salary table if needed
-      try {
-        var salaryColumns = await db.rawQuery("PRAGMA table_info(salary)");
-        var columnNames = salaryColumns.map((c) => c['name'] as String).toList();
-        print('Salary table columns: $columnNames');
-        
-        // Check and add missing columns
-        if (!columnNames.contains('year')) {
-          await db.execute('ALTER TABLE salary ADD COLUMN year TEXT');
-          print('Added year column to salary table');
-        }
-        if (!columnNames.contains('presentDays')) {
-          await db.execute('ALTER TABLE salary ADD COLUMN presentDays INTEGER');
-          print('Added presentDays column to salary table');
-        }
-        if (!columnNames.contains('absentDays')) {
-          await db.execute('ALTER TABLE salary ADD COLUMN absentDays INTEGER');
-          print('Added absentDays column to salary table');
-        }
-        if (!columnNames.contains('grossSalary')) {
-          await db.execute('ALTER TABLE salary ADD COLUMN grossSalary REAL');
-          print('Added grossSalary column to salary table');
-        }
-        if (!columnNames.contains('totalAdvance')) {
-          await db.execute('ALTER TABLE salary ADD COLUMN totalAdvance REAL');
-          print('Added totalAdvance column to salary table');
-        }
-        if (!columnNames.contains('netSalary')) {
-          await db.execute('ALTER TABLE salary ADD COLUMN netSalary REAL');
-          print('Added netSalary column to salary table');
-        }
-        if (!columnNames.contains('paidDate')) {
-          await db.execute('ALTER TABLE salary ADD COLUMN paidDate TEXT');
-          print('Added paidDate column to salary table');
-        }
-      } catch (e) {
-        print('Error checking/adding columns to salary table: $e');
-      }
-      
-      // Verify notifications table exists, create if missing
-      try {
-        var tableExists = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='notifications'"
-        );
-        if (tableExists.isEmpty) {
-          print('Notifications table not found, creating...');
-          await db.execute('''
-            CREATE TABLE notifications (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              title TEXT,
-              message TEXT,
-              type TEXT,
-              userId INTEGER,
-              userRole TEXT,
-              isRead INTEGER DEFAULT 0,
-              createdAt TEXT,
-              relatedId TEXT
-            )
-          ''');
-          print('Notifications table created successfully');
-        } else {
-          print('Notifications table already exists');
-        }
-      } catch (e) {
-        print('Error checking/creating notifications table: $e');
+      if (adminUsers.isEmpty) {
+        print('No default admin user found, creating one...');
+        await db.insert('users', {
+          'name': 'Admin',
+          'phone': '8104246218',
+          'password': PasswordUtils.hashPassword(
+            'admin123',
+          ), // Hash password before storing
+          'role': 'admin',
+          'wage': 0.0,
+          'joinDate': DateTime.now().toString(),
+          'designation': 'System Administrator', // Add designation for admin
+        });
+        print('Default admin user created successfully');
+      } else {
+        print('Default admin user already exists');
       }
       
       // Debug: Check what users exist in the database
@@ -566,13 +484,59 @@ class DatabaseHelper {
         var allUsers = await db.query('users');
         print('All users in database after initialization: ${allUsers.length}');
         for (var user in allUsers) {
-          print('User in DB: ID=${user['id']}, Name=${user['name']}, Phone=${user['phone']}, Role=${user['role']}');
+          print(
+            'User in DB: ID=${user['id']}, Name=${user['name']}, Phone=${user['phone']}, Role=${user['role']}',
+          );
         }
       } catch (e) {
         print('Error checking users in database: $e');
       }
     } catch (e) {
-      print('Error in onOpen callback: $e');
+      print('Error checking/creating default admin user: $e');
+    }
+  }
+
+  Future<void> createTestWorkerIfNotExists() async {
+    try {
+      print('Checking if test worker exists...');
+      var client = await db;
+      
+      // Check if our test worker exists
+      var results = await client.query(
+        'users',
+        where: 'phone = ? AND role = ?',
+        whereArgs: ['9876543210', 'worker'],
+      );
+      
+      if (results.isEmpty) {
+        print('Test worker not found, creating one...');
+        
+        // Create test worker
+        final worker = User(
+          name: 'John Doe',
+          phone: '9876543210',
+          password: PasswordUtils.hashPassword('worker123'), // Hash the password
+          role: 'worker',
+          wage: 500.0,
+          joinDate: DateTime.now().toString(),
+          designation: 'General Worker',
+          address: '123 Main Street',
+          email: 'johndoe@example.com',
+        );
+        
+        await insertUser(worker);
+        print('Test worker created successfully');
+      } else {
+        print('Test worker already exists');
+        // Print the existing worker for debugging
+        if (results.isNotEmpty) {
+          var user = User.fromMap(results.first);
+          print('Existing worker: ${user.name}, Wage: ${user.wage}');
+        }
+      }
+    } catch (e, stackTrace) {
+      print('Error creating test worker: $e');
+      print('Stack trace: $stackTrace');
     }
   }
 
@@ -581,20 +545,37 @@ class DatabaseHelper {
     try {
       print('Inserting user: ${user.name}');
       var client = await db;
-      int result = await client.insert('users', user.toMap());
+
+      // Hash password before storing (if not already hashed)
+      var userMap = user.toMap();
+      if (!PasswordUtils.isHashed(userMap['password'] as String)) {
+        userMap['password'] = PasswordUtils.hashPassword(
+          userMap['password'] as String,
+        );
+      }
+
+      int result = await client.insert('users', userMap);
       print('User inserted successfully with ID: $result');
-      
-      // Verify the insert
-      var insertedUser = await client.query('users', where: 'id = ?', whereArgs: [result]);
-      print('Verification - User data in DB: $insertedUser');
-      
-      // Verify all users in database
+
+      // Verify the insert (without password)
+      var insertedUser = await client.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [result],
+      );
+      print(
+        'Verification - User data in DB: ID=${insertedUser.first['id']}, Name=${insertedUser.first['name']}, Phone=${insertedUser.first['phone']}, Role=${insertedUser.first['role']}',
+      );
+
+      // Verify all users in database (without passwords)
       var allUsers = await client.query('users');
       print('All users after insert: ${allUsers.length}');
       for (var u in allUsers) {
-        print('User in DB: ID=${u['id']}, Name=${u['name']}, Phone=${u['phone']}, Role=${u['role']}');
+        print(
+          'User in DB: ID=${u['id']}, Name=${u['name']}, Phone=${u['phone']}, Role=${u['role']}',
+        );
       }
-      
+
       return result;
     } catch (e, stackTrace) {
       print('Error inserting user: $e');
@@ -610,9 +591,9 @@ class DatabaseHelper {
       var results = await client.query('users');
       print('Found ${results.length} users');
       
-      // Debug: Print all users
-      for (var result in results) {
-        print('User in DB: ID=${result['id']}, Name=${result['name']}, Phone=${result['phone']}, Role=${result['role']}');
+      // Print all users for debugging
+      for (var user in results) {
+        print('User: ID=${user['id']}, Name=${user['name']}, Phone=${user['phone']}, Role=${user['role']}');
       }
       
       return results.map((map) => User.fromMap(map)).toList();
@@ -627,7 +608,11 @@ class DatabaseHelper {
     try {
       print('Getting user by ID: $id');
       var client = await db;
-      var results = await client.query('users', where: 'id = ?', whereArgs: [id]);
+      var results = await client.query(
+        'users',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
       if (results.isNotEmpty) {
         print('User found: ${User.fromMap(results.first).name}');
         return User.fromMap(results.first);
@@ -643,34 +628,70 @@ class DatabaseHelper {
 
   Future<User?> getUserByPhoneAndPassword(String phone, String password) async {
     try {
-      print('Authenticating user with phone: $phone and password: $password');
+      print('Authenticating user with phone: $phone');
       // Ensure database is initialized
-      await initDB();
+      await _initDB();
       var client = await db;
       print('Database client obtained successfully');
+
+      // Get user by phone first
       var results = await client.query(
         'users',
-        where: 'phone = ? AND password = ?',
-        whereArgs: [phone, password],
+        where: 'phone = ?',
+        whereArgs: [phone],
       );
-      print('Found ${results.length} matching users');
-      if (results.isNotEmpty) {
-        print('Raw user data from database: ${results.first}');
-        User user = User.fromMap(results.first);
+
+      if (results.isEmpty) {
+        print('User not found with phone: $phone');
+        return null;
+      }
+
+      var userData = results.first;
+      var storedPassword = userData['password'] as String;
+
+      // Check if stored password is hashed or plain text (for migration)
+      bool passwordMatches;
+      if (PasswordUtils.isHashed(storedPassword)) {
+        // Compare hashed passwords
+        passwordMatches = PasswordUtils.verifyPassword(
+          password,
+          storedPassword,
+        );
+      } else {
+        // Legacy: plain text password (for existing databases)
+        // Hash the input and compare, or do plain text comparison for migration
+        // Then update the password to hashed version
+        passwordMatches = password == storedPassword;
+        if (passwordMatches) {
+          // Migrate to hashed password
+          print(
+            'Migrating password to hashed format for user: ${userData['name']}',
+          );
+          await client.update(
+            'users',
+            {'password': PasswordUtils.hashPassword(password)},
+            where: 'id = ?',
+            whereArgs: [userData['id']],
+          );
+        }
+      }
+
+      if (passwordMatches) {
+        User user = User.fromMap(userData);
         print('User authenticated: ${user.name}, role: ${user.role}');
         return user;
       }
-      print('User not found or invalid credentials');
-      // Let's also check if there are any users in the database
-      var allUsers = await client.query('users');
-      print('Total users in database: ${allUsers.length}');
-      for (var user in allUsers) {
-        print('User in database: phone=${user['phone']}, password=${user['password']}, role=${user['role']}');
-      }
+
+      print('Invalid password for user: $phone');
       return null;
     } catch (e, stackTrace) {
-      print('Error authenticating user: $e');
+      print('=== DATABASE AUTHENTICATION ERROR ===');
+      print('Error type: ${e.runtimeType}');
+      print('Error message: $e');
       print('Stack trace: $stackTrace');
+      print('====================================');
+      
+      // Re-throw the error so the calling function can handle it appropriately
       rethrow;
     }
   }
@@ -679,9 +700,19 @@ class DatabaseHelper {
     try {
       print('Updating user: ${user.name}');
       var client = await db;
+
+      // Hash password before updating (if not already hashed)
+      var userMap = user.toMap();
+      if (userMap['password'] != null &&
+          !PasswordUtils.isHashed(userMap['password'] as String)) {
+        userMap['password'] = PasswordUtils.hashPassword(
+          userMap['password'] as String,
+        );
+      }
+
       return await client.update(
         'users',
-        user.toMap(),
+        userMap,
         where: 'id = ?',
         whereArgs: [user.id],
       );
@@ -735,12 +766,38 @@ class DatabaseHelper {
     try {
       print('Getting attendances for worker ID: $workerId');
       var client = await db;
-      var results =
-          await client.query('attendance', where: 'workerId = ?', whereArgs: [workerId]);
+      var results = await client.query(
+        'attendance',
+        where: 'workerId = ?',
+        whereArgs: [workerId],
+      );
       print('Found ${results.length} attendances for worker ID: $workerId');
       return results.map((map) => Attendance.fromMap(map)).toList();
     } catch (e, stackTrace) {
       print('Error getting attendances by worker ID: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<Attendance>> getAttendancesByWorkerIdAndDate(
+    int workerId,
+    String date,
+  ) async {
+    try {
+      print('Getting attendances for worker ID: $workerId and date: $date');
+      var client = await db;
+      var results = await client.query(
+        'attendance',
+        where: 'workerId = ? AND date = ?',
+        whereArgs: [workerId, date],
+      );
+      print(
+        'Found ${results.length} attendances for worker ID: $workerId and date: $date',
+      );
+      return results.map((map) => Attendance.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting attendances by worker ID and date: $e');
       print('Stack trace: $stackTrace');
       rethrow;
     }
@@ -767,7 +824,11 @@ class DatabaseHelper {
     try {
       print('Deleting attendance ID: $id');
       var client = await db;
-      return await client.delete('attendance', where: 'id = ?', whereArgs: [id]);
+      return await client.delete(
+        'attendance',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
     } catch (e, stackTrace) {
       print('Error deleting attendance: $e');
       print('Stack trace: $stackTrace');
@@ -779,11 +840,20 @@ class DatabaseHelper {
   Future<int> insertAdvance(Advance advance) async {
     try {
       print('Inserting advance for worker ID: ${advance.workerId}');
+      print('Advance object: ${advance.toMap()}');
       var client = await db;
       return await client.insert('advance', advance.toMap());
     } catch (e, stackTrace) {
       print('Error inserting advance: $e');
       print('Stack trace: $stackTrace');
+      
+      // Log the specific error details
+      if (e.toString().contains('no such column')) {
+        print('This might be a database schema issue - missing columns in advance table');
+      } else if (e.toString().contains('constraint')) {
+        print('This is a database constraint error');
+      }
+      
       rethrow;
     }
   }
@@ -806,8 +876,11 @@ class DatabaseHelper {
     try {
       print('Getting advances for worker ID: $workerId');
       var client = await db;
-      var results =
-          await client.query('advance', where: 'workerId = ?', whereArgs: [workerId]);
+      var results = await client.query(
+        'advance',
+        where: 'workerId = ?',
+        whereArgs: [workerId],
+      );
       print('Found ${results.length} advances for worker ID: $workerId');
       return results.map((map) => Advance.fromMap(map)).toList();
     } catch (e, stackTrace) {
@@ -817,16 +890,21 @@ class DatabaseHelper {
     }
   }
 
-  Future<List<Advance>> getAdvancesByWorkerIdAndMonth(int workerId, String month) async {
+  Future<List<Advance>> getAdvancesByWorkerIdAndMonth(
+    int workerId,
+    String month,
+  ) async {
     try {
       print('Getting advances for worker ID: $workerId and month: $month');
       var client = await db;
       var results = await client.query(
-        'advance', 
-        where: 'workerId = ? AND date LIKE ?', 
-        whereArgs: [workerId, '$month%']
+        'advance',
+        where: 'workerId = ? AND date LIKE ?',
+        whereArgs: [workerId, '$month%'],
       );
-      print('Found ${results.length} advances for worker ID: $workerId and month: $month');
+      print(
+        'Found ${results.length} advances for worker ID: $workerId and month: $month',
+      );
       return results.map((map) => Advance.fromMap(map)).toList();
     } catch (e, stackTrace) {
       print('Error getting advances by worker ID and month: $e');
@@ -886,15 +964,118 @@ class DatabaseHelper {
     }
   }
 
+  // Reset all data method
+  Future<void> resetAllData() async {
+    try {
+      print('Resetting all data...');
+      var client = await db;
+      
+      // Delete all records from all tables
+      await client.delete('users');
+      await client.delete('attendance');
+      await client.delete('advance');
+      await client.delete('salary');
+      await client.delete('login_status');
+      await client.delete('login_history');
+      await client.delete('notifications');
+      
+      // Insert default admin user
+      await client.insert('users', {
+        'name': 'Admin',
+        'phone': '8104246218',
+        'password': PasswordUtils.hashPassword(
+          'admin123',
+        ), // Hash password before storing
+        'role': 'admin',
+        'wage': 0.0,
+        'joinDate': DateTime.now().toString(),
+        'designation': 'System Administrator',
+      });
+      
+      print('All data reset successfully');
+    } catch (e, stackTrace) {
+      print('Error resetting all data: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+  
+  // Force database upgrade method
+  Future<void> forceUpgrade() async {
+    try {
+      print('Forcing database upgrade...');
+      var client = await db;
+      
+      // Get current database version
+      int currentVersion = await client.getVersion();
+      print('Current database version: $currentVersion');
+      
+      // Force upgrade to latest version
+      if (currentVersion < _version) {
+        print('Upgrading database to version $_version');
+        await _onUpgrade(client, currentVersion, _version);
+        await client.setVersion(_version);
+        print('Database upgraded to version $_version');
+      } else {
+        print('Database is already at the latest version');
+      }
+    } catch (e, stackTrace) {
+      print('Error forcing database upgrade: $e');
+      print('Stack trace: $stackTrace');
+    }
+  }
+
   // Salary methods
   Future<int> insertSalary(Salary salary) async {
     try {
-      print('Inserting salary for worker ID: ${salary.workerId}');
+      print('=== INSERTING SALARY ===');
+      print('Salary object: ${salary.toMap()}');
+      
+      // Validate required fields
+      if (salary.workerId <= 0) {
+        throw Exception('Worker ID is required and must be positive, got: ${salary.workerId}');
+      }
+      
+      if (salary.month.isEmpty) {
+        throw Exception('Month is required and cannot be empty');
+      }
+      
+      print('Worker ID: ${salary.workerId}');
+      print('Month: ${salary.month}');
+      print('Year: ${salary.year}');
+      print('Total Days: ${salary.totalDays}');
+      print('Present Days: ${salary.presentDays}');
+      print('Absent Days: ${salary.absentDays}');
+      print('Gross Salary: ${salary.grossSalary}');
+      print('Total Advance: ${salary.totalAdvance}');
+      print('Net Salary: ${salary.netSalary}');
+      print('Paid: ${salary.paid}');
+      print('Paid Date: ${salary.paidDate}');
+      print('PDF URL: ${salary.pdfUrl}');
+      
       var client = await db;
-      return await client.insert('salary', salary.toMap());
+      print('Database client obtained successfully');
+      
+      final result = await client.insert('salary', salary.toMap());
+      print('Salary inserted successfully with ID: $result');
+      return result;
     } catch (e, stackTrace) {
-      print('Error inserting salary: $e');
+      print('!!! ERROR INSERTING SALARY !!!');
+      print('Error type: ${e.runtimeType}');
+      print('Error message: $e');
       print('Stack trace: $stackTrace');
+      
+      // Log the specific error details
+      if (e.toString().contains('UNIQUE constraint failed')) {
+        print('This might be a duplicate salary entry');
+      } else if (e.toString().contains('NOT NULL constraint failed')) {
+        print('This might be a missing required field');
+      } else if (e.toString().contains('no such column')) {
+        print('This might be a missing database column');
+      } else if (e.toString().contains('constraint')) {
+        print('This is a database constraint error');
+      }
+      
       rethrow;
     }
   }
@@ -917,7 +1098,11 @@ class DatabaseHelper {
     try {
       print('Getting paid salaries...');
       var client = await db;
-      var results = await client.query('salary', where: 'paid = ?', whereArgs: [1]);
+      var results = await client.query(
+        'salary',
+        where: 'paid = ?',
+        whereArgs: [1],
+      );
       print('Found ${results.length} paid salaries');
       return results.map((map) => Salary.fromMap(map)).toList();
     } catch (e, stackTrace) {
@@ -933,8 +1118,8 @@ class DatabaseHelper {
       var client = await db;
       var results = await client.query(
         'salary',
-        where: 'paid = ? AND month = ?',
-        whereArgs: [1, month],
+        where: 'paid = ? AND month LIKE ?',
+        whereArgs: [1, '$month%'],
       );
       print('Found ${results.length} paid salaries for month: $month');
       return results.map((map) => Salary.fromMap(map)).toList();
@@ -945,12 +1130,33 @@ class DatabaseHelper {
     }
   }
 
+  Future<List<Salary>> getPaidSalariesByWorkerIdAndMonth(int workerId, String month) async {
+    try {
+      print('Getting paid salaries for worker ID: $workerId and month: $month');
+      var client = await db;
+      var results = await client.query(
+        'salary',
+        where: 'workerId = ? AND paid = ? AND month LIKE ?',
+        whereArgs: [workerId, 1, '$month%'],
+      );
+      print('Found ${results.length} paid salaries for worker ID: $workerId and month: $month');
+      return results.map((map) => Salary.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting paid salaries by worker ID and month: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
   Future<List<Salary>> getSalariesByWorkerId(int workerId) async {
     try {
       print('Getting salaries for worker ID: $workerId');
       var client = await db;
-      var results =
-          await client.query('salary', where: 'workerId = ?', whereArgs: [workerId]);
+      var results = await client.query(
+        'salary',
+        where: 'workerId = ?',
+        whereArgs: [workerId],
+      );
       print('Found ${results.length} salaries for worker ID: $workerId');
       return results.map((map) => Salary.fromMap(map)).toList();
     } catch (e, stackTrace) {
@@ -960,7 +1166,10 @@ class DatabaseHelper {
     }
   }
 
-  Future<Salary?> getSalaryByWorkerIdAndMonth(int workerId, String month) async {
+  Future<Salary?> getSalaryByWorkerIdAndMonth(
+    int workerId,
+    String month,
+  ) async {
     try {
       print('Getting salary for worker ID: $workerId and month: $month');
       var client = await db;
@@ -971,7 +1180,9 @@ class DatabaseHelper {
       );
       if (results.isNotEmpty) {
         Salary salary = Salary.fromMap(results.first);
-        print('Salary found for worker ID $workerId and month $month: ${salary.totalSalary}');
+        print(
+          'Salary found for worker ID $workerId and month $month: ${salary.totalSalary}',
+        );
         return salary;
       }
       print('No salary found for worker ID: $workerId and month: $month');
@@ -1015,9 +1226,34 @@ class DatabaseHelper {
   // LoginStatus methods
   Future<int> insertLoginStatus(LoginStatus loginStatus) async {
     try {
-      print('Inserting login status for worker ID: ${loginStatus.workerId}');
+      print(
+        'Inserting or updating login status for worker ID: ${loginStatus.workerId} on date: ${loginStatus.date}',
+      );
       var client = await db;
-      return await client.insert('login_status', loginStatus.toMap());
+
+      // First, check if a record already exists for this worker and date
+      var existingRecords = await client.query(
+        'login_status',
+        where: 'workerId = ? AND date = ?',
+        whereArgs: [loginStatus.workerId, loginStatus.date],
+      );
+
+      if (existingRecords.isNotEmpty) {
+        // Update existing record
+        print(
+          'Updating existing login status record with ID: ${existingRecords.first['id']}',
+        );
+        return await client.update(
+          'login_status',
+          loginStatus.toMap(),
+          where: 'id = ?',
+          whereArgs: [existingRecords.first['id']],
+        );
+      } else {
+        // Insert new record
+        print('Inserting new login status record');
+        return await client.insert('login_status', loginStatus.toMap());
+      }
     } catch (e, stackTrace) {
       print('Error inserting login status: $e');
       print('Stack trace: $stackTrace');
@@ -1043,7 +1279,11 @@ class DatabaseHelper {
     try {
       print('Getting login statuses for worker ID: $workerId');
       var client = await db;
-      var results = await client.query('login_status', where: 'workerId = ?', whereArgs: [workerId]);
+      var results = await client.query(
+        'login_status',
+        where: 'workerId = ?',
+        whereArgs: [workerId],
+      );
       print('Found ${results.length} login statuses for worker ID: $workerId');
       return results.map((map) => LoginStatus.fromMap(map)).toList();
     } catch (e, stackTrace) {
@@ -1053,23 +1293,24 @@ class DatabaseHelper {
     }
   }
 
-  Future<LoginStatus?> getTodayLoginStatus(int workerId, String date) async {
+  Future<List<LoginStatus>> getLoginStatusesByWorkerIdAndDate(
+    int workerId,
+    String date,
+  ) async {
     try {
-      print('Getting today login status for worker ID: $workerId, date: $date');
+      print('Getting login statuses for worker ID: $workerId and date: $date');
       var client = await db;
       var results = await client.query(
         'login_status',
         where: 'workerId = ? AND date = ?',
         whereArgs: [workerId, date],
       );
-      if (results.isNotEmpty) {
-        print('Login status found for worker ID $workerId and date $date');
-        return LoginStatus.fromMap(results.first);
-      }
-      print('No login status found for worker ID: $workerId and date: $date');
-      return null;
+      print(
+        'Found ${results.length} login statuses for worker ID: $workerId and date: $date',
+      );
+      return results.map((map) => LoginStatus.fromMap(map)).toList();
     } catch (e, stackTrace) {
-      print('Error getting today login status: $e');
+      print('Error getting login statuses by worker ID and date: $e');
       print('Stack trace: $stackTrace');
       rethrow;
     }
@@ -1092,28 +1333,60 @@ class DatabaseHelper {
     }
   }
 
-  Future<List<LoginStatus>> getCurrentlyLoggedInWorkers() async {
+  Future<int> deleteLoginStatus(int id) async {
     try {
-      print('Getting currently logged in workers...');
+      print('Deleting login status ID: $id');
       var client = await db;
-      var results = await client.query('login_status', where: 'isLoggedIn = 1');
-      print('Found ${results.length} currently logged in workers');
-      return results.map((map) => LoginStatus.fromMap(map)).toList();
+      return await client.delete(
+        'login_status',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
     } catch (e, stackTrace) {
-      print('Error getting currently logged in workers: $e');
+      print('Error deleting login status: $e');
       print('Stack trace: $stackTrace');
       rethrow;
     }
   }
 
-  // Login history methods
+  // LoginHistory methods
   Future<int> insertLoginHistory(Map<String, dynamic> loginHistory) async {
     try {
-      print('Inserting login history record');
+      print('Inserting login history');
       var client = await db;
       return await client.insert('login_history', loginHistory);
     } catch (e, stackTrace) {
       print('Error inserting login history: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getLoginHistory() async {
+    try {
+      print('Getting login history...');
+      var client = await db;
+      var results = await client.query('login_history');
+      print('Found ${results.length} login history records');
+      return results;
+    } catch (e, stackTrace) {
+      print('Error getting login history: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<int> deleteLoginHistory(int id) async {
+    try {
+      print('Deleting login history ID: $id');
+      var client = await db;
+      return await client.delete(
+        'login_history',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e, stackTrace) {
+      print('Error deleting login history: $e');
       print('Stack trace: $stackTrace');
       rethrow;
     }
@@ -1136,7 +1409,7 @@ class DatabaseHelper {
     try {
       print('Getting all notifications...');
       var client = await db;
-      var results = await client.query('notifications', orderBy: 'createdAt DESC');
+      var results = await client.query('notifications');
       print('Found ${results.length} notifications');
       return results.map((map) => NotificationModel.fromMap(map)).toList();
     } catch (e, stackTrace) {
@@ -1146,17 +1419,142 @@ class DatabaseHelper {
     }
   }
 
-  Future<List<NotificationModel>> getNotificationsByUser(int userId, String userRole) async {
+  Future<List<NotificationModel>> getNotificationsByUserIdAndRole(
+    int userId,
+    String userRole,
+  ) async {
     try {
-      print('Getting notifications for user ID: $userId, role: $userRole');
+      print('Getting notifications for user ID: $userId and role: $userRole');
       var client = await db;
       var results = await client.query(
         'notifications',
         where: 'userId = ? AND userRole = ?',
         whereArgs: [userId, userRole],
-        orderBy: 'createdAt DESC',
       );
-      print('Found ${results.length} notifications for user ID: $userId');
+      print(
+        'Found ${results.length} notifications for user ID: $userId and role: $userRole',
+      );
+      return results.map((map) => NotificationModel.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting notifications by user ID and role: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<int> markNotificationAsRead(int id) async {
+    try {
+      print('Marking notification ID: $id as read');
+      var client = await db;
+      return await client.update(
+        'notifications',
+        {'isRead': 1},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e, stackTrace) {
+      print('Error marking notification as read: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<int> deleteNotification(int id) async {
+    try {
+      print('Deleting notification ID: $id');
+      var client = await db;
+      return await client.delete(
+        'notifications',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e, stackTrace) {
+      print('Error deleting notification: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<int> deleteAllNotifications() async {
+    try {
+      print('Deleting all notifications');
+      var client = await db;
+      return await client.delete('notifications');
+    } catch (e, stackTrace) {
+      print('Error deleting all notifications: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  // Additional methods to fix compilation errors
+  Future<LoginStatus?> getTodayLoginStatus(int workerId, String date) async {
+    try {
+      print('Getting today\'s login status for worker ID: $workerId and date: $date');
+      var client = await db;
+      var results = await client.query(
+        'login_status',
+        where: 'workerId = ? AND date = ?',
+        whereArgs: [workerId, date],
+      );
+      if (results.isNotEmpty) {
+        print('Found login status for worker ID: $workerId and date: $date');
+        return LoginStatus.fromMap(results.first);
+      }
+      print('No login status found for worker ID: $workerId and date: $date');
+      return null;
+    } catch (e, stackTrace) {
+      print('Error getting today\'s login status: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<LoginStatus>> getCurrentlyLoggedInWorkers() async {
+    try {
+      print('Getting currently logged in workers (login statuses)');
+      var client = await db;
+      var results = await client.rawQuery('''
+        SELECT ls.* FROM login_status ls
+        WHERE ls.isLoggedIn = 1
+      ''');
+      print('Found ${results.length} currently logged in workers');
+      return results.map((map) => LoginStatus.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting currently logged in workers: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<LoginStatus>> getTodayLoginStatuses(String date) async {
+    try {
+      print('Getting today\'s login statuses for date: $date');
+      var client = await db;
+      var results = await client.query(
+        'login_status',
+        where: 'date = ?',
+        whereArgs: [date],
+      );
+      print('Found ${results.length} login statuses for date: $date');
+      return results.map((map) => LoginStatus.fromMap(map)).toList();
+    } catch (e, stackTrace) {
+      print('Error getting today\'s login statuses: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  Future<List<NotificationModel>> getNotificationsByUser(int userId, String userRole) async {
+    try {
+      print('Getting notifications for user ID: $userId and role: $userRole');
+      var client = await db;
+      var results = await client.query(
+        'notifications',
+        where: 'userId = ? AND userRole = ?',
+        whereArgs: [userId, userRole],
+      );
+      print('Found ${results.length} notifications for user ID: $userId and role: $userRole');
       return results.map((map) => NotificationModel.fromMap(map)).toList();
     } catch (e, stackTrace) {
       print('Error getting notifications by user: $e');
@@ -1167,15 +1565,14 @@ class DatabaseHelper {
 
   Future<List<NotificationModel>> getUnreadNotificationsByUser(int userId, String userRole) async {
     try {
-      print('Getting unread notifications for user ID: $userId, role: $userRole');
+      print('Getting unread notifications for user ID: $userId and role: $userRole');
       var client = await db;
       var results = await client.query(
         'notifications',
         where: 'userId = ? AND userRole = ? AND isRead = ?',
         whereArgs: [userId, userRole, 0],
-        orderBy: 'createdAt DESC',
       );
-      print('Found ${results.length} unread notifications for user ID: $userId');
+      print('Found ${results.length} unread notifications for user ID: $userId and role: $userRole');
       return results.map((map) => NotificationModel.fromMap(map)).toList();
     } catch (e, stackTrace) {
       print('Error getting unread notifications by user: $e');
@@ -1184,72 +1581,17 @@ class DatabaseHelper {
     }
   }
 
-  Future<int> updateNotification(NotificationModel notification) async {
-    try {
-      print('Updating notification ID: ${notification.id}');
-      var client = await db;
-      return await client.update(
-        'notifications',
-        notification.toMap(),
-        where: 'id = ?',
-        whereArgs: [notification.id],
-      );
-    } catch (e, stackTrace) {
-      print('Error updating notification: $e');
-      print('Stack trace: $stackTrace');
-      rethrow;
-    }
-  }
-
-  Future<int> markNotificationAsRead(int notificationId) async {
-    try {
-      print('Marking notification ID: $notificationId as read');
-      var client = await db;
-      return await client.update(
-        'notifications',
-        {'isRead': 1},
-        where: 'id = ?',
-        whereArgs: [notificationId],
-      );
-    } catch (e, stackTrace) {
-      print('Error marking notification as read: $e');
-      print('Stack trace: $stackTrace');
-      rethrow;
-    }
-  }
-
-  Future<int> markAllNotificationsAsRead(int userId, String userRole) async {
-    try {
-      print('Marking all notifications as read for user ID: $userId, role: $userRole');
-      var client = await db;
-      return await client.update(
-        'notifications',
-        {'isRead': 1},
-        where: 'userId = ? AND userRole = ?',
-        whereArgs: [userId, userRole],
-      );
-    } catch (e, stackTrace) {
-      print('Error marking all notifications as read: $e');
-      print('Stack trace: $stackTrace');
-      rethrow;
-    }
-  }
-
   Future<int> getUnreadNotificationCount(int userId, String userRole) async {
     try {
-      print('Getting unread notification count for user ID: $userId, role: $userRole');
+      print('Getting unread notification count for user ID: $userId and role: $userRole');
       var client = await db;
       var results = await client.query(
         'notifications',
-        columns: ['COUNT(*) as count'],
         where: 'userId = ? AND userRole = ? AND isRead = ?',
         whereArgs: [userId, userRole, 0],
       );
-      
-      if (results.isNotEmpty) {
-        return results.first['count'] as int;
-      }
-      return 0;
+      print('Found ${results.length} unread notifications for user ID: $userId and role: $userRole');
+      return results.length;
     } catch (e, stackTrace) {
       print('Error getting unread notification count: $e');
       print('Stack trace: $stackTrace');
@@ -1257,13 +1599,19 @@ class DatabaseHelper {
     }
   }
 
-  Future<int> deleteNotification(int id) async {
+  Future<void> markAllNotificationsAsRead(int userId, String userRole) async {
     try {
-      print('Deleting notification ID: $id');
+      print('Marking all notifications as read for user ID: $userId and role: $userRole');
       var client = await db;
-      return await client.delete('notifications', where: 'id = ?', whereArgs: [id]);
+      await client.update(
+        'notifications',
+        {'isRead': 1},
+        where: 'userId = ? AND userRole = ?',
+        whereArgs: [userId, userRole],
+      );
+      print('Marked all notifications as read for user ID: $userId and role: $userRole');
     } catch (e, stackTrace) {
-      print('Error deleting notification: $e');
+      print('Error marking all notifications as read: $e');
       print('Stack trace: $stackTrace');
       rethrow;
     }

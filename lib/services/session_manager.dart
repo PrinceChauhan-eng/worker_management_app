@@ -1,12 +1,14 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import '../utils/logger.dart';
 
 class SessionManager {
-  static const String KEY_IS_LOGGED_IN = "isLoggedIn";
-  static const String KEY_USER_ID = "userId";
-  static const String KEY_USER_ROLE = "userRole";
-  static const String KEY_REMEMBER_ME = "rememberMe";
-  static const String KEY_REMEMBERED_PHONE = "rememberedPhone";
-  static const String KEY_LAST_LOGIN_TIME = "lastLoginTime";
+  static const String keyActiveSessions = "activeSessions";
+  static const String keyDefaultSession = "defaultSession";
+  static const String keyRememberMe = "rememberMe";
+  static const String keyRememberedPhone = "rememberedPhone";
+  static const String keyLastLoginTime = "lastLoginTime";
+  static const String keyCurrentUserId = "currentUserId"; // Track current user per tab
 
   static final SessionManager _instance = SessionManager._internal();
   factory SessionManager() => _instance;
@@ -16,36 +18,127 @@ class SessionManager {
 
   Future<void> init() async {
     try {
-      print('Initializing SessionManager...');
+      Logger.info('Initializing SessionManager...');
       _prefs = await SharedPreferences.getInstance();
-      print('SessionManager initialized successfully');
-    } catch (e) {
-      print('Error initializing SessionManager: $e');
+      Logger.info('SessionManager initialized successfully');
+    } catch (e, stackTrace) {
+      Logger.error('Error initializing SessionManager: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
       rethrow;
     }
   }
 
-  // Login session methods
-  Future<void> setLoginSession(int userId, String userRole) async {
+  // Enhanced session management for multiple users
+  Future<void> addSession(int userId, String userRole) async {
     try {
-      print('Setting login session for user ID: $userId, role: $userRole');
-      await _prefs.setBool(KEY_IS_LOGGED_IN, true);
-      await _prefs.setInt(KEY_USER_ID, userId);
-      await _prefs.setString(KEY_USER_ROLE, userRole);
+      Logger.info('Adding session for user ID: $userId, role: $userRole');
       
-      // Save last login time
-      final now = DateTime.now().toString();
-      await _prefs.setString(KEY_LAST_LOGIN_TIME, now);
+      // Get existing sessions
+      List<Session> sessions = await getActiveSessions();
       
-      // Verify the session was saved
-      bool isLoggedIn = _prefs.getBool(KEY_IS_LOGGED_IN) ?? false;
-      int savedUserId = _prefs.getInt(KEY_USER_ID) ?? 0;
-      String savedUserRole = _prefs.getString(KEY_USER_ROLE) ?? '';
-      print('Session verification - Logged in: $isLoggedIn, User ID: $savedUserId, Role: $savedUserRole');
+      // Check if session already exists for this user
+      bool sessionExists = sessions.any((session) => session.userId == userId);
       
-      print('Login session set successfully');
-    } catch (e) {
-      print('Error setting login session: $e');
+      if (!sessionExists) {
+        // Create new session
+        final now = DateTime.now().toString();
+        Session newSession = Session(
+          userId: userId,
+          userRole: userRole,
+          loginTime: now,
+          lastActiveTime: now,
+        );
+        
+        // Add to sessions list
+        sessions.add(newSession);
+        
+        // Save sessions
+        await _saveSessions(sessions);
+      }
+      
+      // Also save as last login time
+      await _prefs.setString(keyLastLoginTime, DateTime.now().toString());
+      
+      Logger.info('Session added/updated successfully for user ID: $userId');
+    } catch (e, stackTrace) {
+      Logger.error('Error adding session: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
+      rethrow;
+    }
+  }
+
+  Future<void> removeSession(int userId) async {
+    try {
+      Logger.info('Removing session for user ID: $userId');
+      
+      // Get existing sessions
+      List<Session> sessions = await getActiveSessions();
+      
+      // Remove session for this user
+      sessions.removeWhere((session) => session.userId == userId);
+      
+      // Save updated sessions
+      await _saveSessions(sessions);
+      
+      Logger.info('Session removed successfully for user ID: $userId');
+    } catch (e, stackTrace) {
+      Logger.error('Error removing session: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
+      rethrow;
+    }
+  }
+
+  Future<List<Session>> getActiveSessions() async {
+    try {
+      String? sessionsJson = _prefs.getString(keyActiveSessions);
+      
+      // Handle null case
+      if (sessionsJson == null) {
+        return [];
+      }
+      
+      List<dynamic> sessionsList = jsonDecode(sessionsJson);
+      return sessionsList.map((session) => Session.fromJson(session)).toList();
+    } catch (e, stackTrace) {
+      Logger.error('Error getting active sessions: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
+      return [];
+    }
+  }
+
+  Future<Session?> getDefaultSession() async {
+    try {
+      String? defaultSessionJson = _prefs.getString(keyDefaultSession);
+      
+      // Handle null case
+      if (defaultSessionJson == null) {
+        return null;
+      }
+      
+      return Session.fromJson(jsonDecode(defaultSessionJson));
+    } catch (e, stackTrace) {
+      Logger.error('Error getting default session: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
+      return null;
+    }
+  }
+
+  Future<void> setDefaultSession(Session session) async {
+    try {
+      await _prefs.setString(keyDefaultSession, jsonEncode(session.toJson()));
+    } catch (e, stackTrace) {
+      Logger.error('Error setting default session: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
+    }
+  }
+
+  Future<void> _saveSessions(List<Session> sessions) async {
+    try {
+      String sessionsJson = jsonEncode(sessions.map((session) => session.toJson()).toList());
+      await _prefs.setString(keyActiveSessions, sessionsJson);
+    } catch (e, stackTrace) {
+      Logger.error('Error saving sessions: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
       rethrow;
     }
   }
@@ -53,32 +146,35 @@ class SessionManager {
   // Remember me functionality
   Future<void> setRememberMe(String phone) async {
     try {
-      await _prefs.setBool(KEY_REMEMBER_ME, true);
-      await _prefs.setString(KEY_REMEMBERED_PHONE, phone);
-    } catch (e) {
-      print('Error setting remember me: $e');
+      await _prefs.setBool(keyRememberMe, true);
+      await _prefs.setString(keyRememberedPhone, phone);
+    } catch (e, stackTrace) {
+      Logger.error('Error setting remember me: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
     }
   }
 
   Future<void> clearRememberMe() async {
     try {
-      await _prefs.remove(KEY_REMEMBER_ME);
-      await _prefs.remove(KEY_REMEMBERED_PHONE);
-    } catch (e) {
-      print('Error clearing remember me: $e');
+      await _prefs.remove(keyRememberMe);
+      await _prefs.remove(keyRememberedPhone);
+    } catch (e, stackTrace) {
+      Logger.error('Error clearing remember me: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
     }
   }
 
   Future<Map<String, String>?> getRememberMe() async {
     try {
-      final isRemembered = _prefs.getBool(KEY_REMEMBER_ME) ?? false;
+      final isRemembered = _prefs.getBool(keyRememberMe) ?? false;
       if (isRemembered) {
-        final phone = _prefs.getString(KEY_REMEMBERED_PHONE) ?? '';
+        final phone = _prefs.getString(keyRememberedPhone) ?? '';
         return {'phone': phone};
       }
       return null;
-    } catch (e) {
-      print('Error getting remember me: $e');
+    } catch (e, stackTrace) {
+      Logger.error('Error getting remember me: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
       return null;
     }
   }
@@ -86,71 +182,118 @@ class SessionManager {
   // Last login time
   Future<String?> getLastLoginTime() async {
     try {
-      return _prefs.getString(KEY_LAST_LOGIN_TIME);
-    } catch (e) {
-      print('Error getting last login time: $e');
+      return _prefs.getString(keyLastLoginTime);
+    } catch (e, stackTrace) {
+      Logger.error('Error getting last login time: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
       return null;
     }
   }
 
-  Future<bool> isLoggedIn() async {
+  Future<bool> hasActiveSessions() async {
     try {
-      bool isLoggedIn = _prefs.getBool(KEY_IS_LOGGED_IN) ?? false;
-      print('Checking if user is logged in: $isLoggedIn');
-      
-      // Additional debugging
-      if (isLoggedIn) {
-        int userId = _prefs.getInt(KEY_USER_ID) ?? 0;
-        String userRole = _prefs.getString(KEY_USER_ROLE) ?? '';
-        print('Session data - User ID: $userId, Role: $userRole');
-      }
-      
-      return isLoggedIn;
-    } catch (e) {
-      print('Error checking if user is logged in: $e');
+      List<Session> sessions = await getActiveSessions();
+      return sessions.isNotEmpty;
+    } catch (e, stackTrace) {
+      Logger.error('Error checking active sessions: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
       return false;
     }
   }
 
-  Future<int> getUserId() async {
+  Future<void> clearAllSessions() async {
     try {
-      int userId = _prefs.getInt(KEY_USER_ID) ?? 0;
-      print('Retrieved user ID from session: $userId');
-      return userId;
-    } catch (e) {
-      print('Error getting user ID from session: $e');
-      return 0;
-    }
-  }
-
-  Future<String> getUserRole() async {
-    try {
-      String userRole = _prefs.getString(KEY_USER_ROLE) ?? '';
-      print('Retrieved user role from session: $userRole');
-      return userRole;
-    } catch (e) {
-      print('Error getting user role from session: $e');
-      return '';
-    }
-  }
-
-  Future<void> logout() async {
-    try {
-      print('Logging out user');
-      await _prefs.remove(KEY_IS_LOGGED_IN);
-      await _prefs.remove(KEY_USER_ID);
-      await _prefs.remove(KEY_USER_ROLE);
-      
-      // Verify logout
-      bool isLoggedIn = _prefs.getBool(KEY_IS_LOGGED_IN) ?? false;
-      int userId = _prefs.getInt(KEY_USER_ID) ?? 0;
-      String userRole = _prefs.getString(KEY_USER_ROLE) ?? '';
-      print('Session after logout - Logged in: $isLoggedIn, User ID: $userId, Role: $userRole');
-      
-      print('User logged out successfully');
-    } catch (e) {
-      print('Error logging out user: $e');
+      Logger.info('Clearing all sessions');
+      await _prefs.remove(keyActiveSessions);
+      await _prefs.remove(keyDefaultSession);
+      await _prefs.remove(keyCurrentUserId); // Clear current user tracking
+      Logger.info('All sessions cleared successfully');
+    } catch (e, stackTrace) {
+      Logger.error('Error clearing all sessions: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
       rethrow;
     }
+  }
+
+  // New methods for tab-specific session management
+  Future<void> setCurrentUserId(int userId) async {
+    try {
+      Logger.info('Setting current user ID: $userId for this tab');
+      await _prefs.setInt(keyCurrentUserId, userId);
+    } catch (e, stackTrace) {
+      Logger.error('Error setting current user ID: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
+    }
+  }
+
+  Future<int?> getCurrentUserId() async {
+    try {
+      final userId = _prefs.getInt(keyCurrentUserId);
+      Logger.info('Current user ID for this tab: $userId');
+      return userId;
+    } catch (e, stackTrace) {
+      Logger.error('Error getting current user ID: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
+      return null;
+    }
+  }
+
+  Future<void> clearCurrentUserId() async {
+    try {
+      Logger.info('Clearing current user ID for this tab');
+      await _prefs.remove(keyCurrentUserId);
+    } catch (e, stackTrace) {
+      Logger.error('Error clearing current user ID: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
+    }
+  }
+  
+  // Enhanced logout that can clear either all sessions or just current tab
+  Future<void> logout(bool clearAllSessions) async {
+    try {
+      if (clearAllSessions) {
+        Logger.info('Logging out and clearing all sessions');
+        await this.clearAllSessions();
+      } else {
+        Logger.info('Logging out current tab only');
+        await clearCurrentUserId();
+      }
+    } catch (e, stackTrace) {
+      Logger.error('Error during logout: $e', e);
+      Logger.error('Stack trace: $stackTrace', stackTrace);
+      rethrow;
+    }
+  }
+}
+
+class Session {
+  final int userId;
+  final String userRole;
+  final String loginTime;
+  final String lastActiveTime;
+
+  Session({
+    required this.userId,
+    required this.userRole,
+    required this.loginTime,
+    required this.lastActiveTime,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'userId': userId,
+      'userRole': userRole,
+      'loginTime': loginTime,
+      'lastActiveTime': lastActiveTime,
+    };
+  }
+
+  factory Session.fromJson(Map<String, dynamic> json) {
+    return Session(
+      userId: json['userId'],
+      userRole: json['userRole'],
+      loginTime: json['loginTime'],
+      lastActiveTime: json['lastActiveTime'],
+    );
   }
 }

@@ -8,6 +8,7 @@ import '../services/session_manager.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_button.dart';
 import 'login_screen.dart';
+import 'cloud_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -90,23 +91,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  _resetAllData() async {
-    // Show confirmation dialog
+  Future<void> _resetAllData() async {
     bool? confirm = await showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Confirm Reset'),
-          content: const Text(
-              'Are you sure you want to reset all data? This action cannot be undone.'),
+          title: Text('Confirm Reset', style: GoogleFonts.poppins()),
+          content: Text(
+            'Are you sure you want to reset all data? This action cannot be undone.',
+            style: GoogleFonts.poppins(),
+          ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel', style: GoogleFonts.poppins()),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Reset'),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                'Reset',
+                style: GoogleFonts.poppins(color: Colors.red),
+              ),
             ),
           ],
         );
@@ -119,40 +124,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
 
       try {
-        // Get database instance
         final dbHelper = DatabaseHelper();
-        final db = await dbHelper.db;
-
-        // Delete all records from all tables
-        await db.delete('users');
-        await db.delete('attendance');
-        await db.delete('advance');
-        await db.delete('salary');
-
-        // Insert default admin user
-        await db.insert('users', {
-          'name': 'Admin',
-          'phone': 'admin',
-          'password': 'admin123',
-          'role': 'admin',
-          'wage': 0.0,
-          'joinDate': DateTime.now().toString(),
-        });
-
-        setState(() {
-          _isLoading = false;
-        });
+        await dbHelper.resetAllData();
 
         Fluttertoast.showToast(
-          msg: 'All data reset successfully!',
+          msg: 'All data has been reset successfully!',
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
         );
 
-        // Logout user
+        // Logout user using new session management
         SessionManager sessionManager = SessionManager();
-        await sessionManager.logout();
         final userProvider = Provider.of<UserProvider>(context, listen: false);
+        
+        // Remove current session
+        if (userProvider.currentUser != null) {
+          await sessionManager.removeSession(userProvider.currentUser!.id!);
+        }
+        
+        // Clear current user in provider
         userProvider.clearCurrentUser();
 
         // Navigate to login screen
@@ -178,6 +168,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
+    final currentUser = userProvider.currentUser;
+    final isWorker = currentUser?.role == 'worker';
+    final userRole = isWorker ? 'Worker' : 'Admin';
     
     return Scaffold(
       appBar: CustomAppBar(
@@ -208,7 +201,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 30),
-            // Change Admin Password
+            // Change Password Section (Dynamic based on user role)
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
@@ -219,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Change Admin Password',
+                      'Change $userRole Password',
                       style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -370,6 +363,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
             ),
+            const SizedBox(height: 20),
+            // Cloud Storage Settings
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: ListTile(
+                leading: const Icon(
+                  Icons.cloud,
+                  color: Color(0xFF1E88E5), // Royal Blue
+                ),
+                title: Text(
+                  'Cloud Storage',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  'Manage cloud storage and synchronization',
+                  style: GoogleFonts.poppins(),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () {
+                  // Navigate to cloud settings screen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CloudSettingsScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+
           ],
         ),
       ),

@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../utils/error_reporter.dart';
 import '../models/user.dart';
 import '../providers/user_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/session_manager.dart';
 import '../services/database_helper.dart';
+import '../utils/validators.dart';
+import '../utils/password_utils.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
-import '../utils/validators.dart';
 import 'admin_dashboard_screen.dart';
 import 'worker_dashboard_screen.dart';
 
@@ -94,8 +95,9 @@ class _LoginScreenState extends State<LoginScreen> {
           _rememberMe = true;
         });
       } else {
+        // Don't pre-fill any data when there's no remembered data
         setState(() {
-          _phoneController.text = '8104246218';
+          _phoneController.text = '';
         });
       }
     } catch (e) {
@@ -117,27 +119,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _trackLoginAttempt(User? user, String input) async {
-    try {
-      final dbHelper = DatabaseHelper();
-      await dbHelper.initDB();
-
-      final loginHistory = {
-        'user_id': user?.id ?? 0,
-        'user_name': user?.name ?? 'Unknown',
-        'user_role': user?.role ?? 'unknown',
-        'login_time': DateTime.now().millisecondsSinceEpoch,
-        'ip_address': '127.0.0.1',
-        'user_agent': kIsWeb ? 'Web Browser' : 'Mobile App',
-        'success': user != null ? 1 : 0,
-        'failure_reason': user != null ? null : 'Invalid credentials',
-      };
-
-      await dbHelper.insertLoginHistory(loginHistory);
-    } catch (e) {
-      print('Error tracking login attempt: $e');
-    }
-  }
 
   @override
   void dispose() {
@@ -146,31 +127,101 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  _login() async {
-    try {
-      if (_formKey.currentState!.validate()) {
-        setState(() => _isLoading = true);
+  Future<void> _login() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
 
+      try {
+        final dbHelper = DatabaseHelper();
         final userProvider = Provider.of<UserProvider>(context, listen: false);
 
-        String cleanInput = _loginMethod == 'phone'
-            ? Validators.cleanPhoneNumber(_phoneController.text.trim())
-            : _phoneController.text.trim();
+        User? user;
 
-        final user = await userProvider.authenticateUser(
-          cleanInput,
-          _passwordController.text.trim(),
-        );
+        print('Attempting login with method: $_loginMethod, role: $_selectedRole');
+        
+        // Authenticate user based on selected role and method
+        if (_loginMethod == 'phone') {
+          print('Authenticating with phone: ${_phoneController.text.trim()}');
+          user = await dbHelper.getUserByPhoneAndPassword(
+            _phoneController.text.trim(),
+            _passwordController.text,
+          );
+          // Check role after authentication
+          if (user != null && user.role != _selectedRole) {
+            print('Role mismatch. User role: ${user.role}, Selected role: $_selectedRole');
+            user = null; // Role mismatch
+          }
+        } else if (_loginMethod == 'email') {
+          print('Authenticating with email: ${_phoneController.text.trim()}');
+          // For email login, we need to search by email first, then authenticate
+          var client = await dbHelper.db;
+          var results = await client.query(
+            'users',
+            where: 'email = ? AND role = ?',
+            whereArgs: [_phoneController.text.trim(), _selectedRole],
+          );
+          
+          if (results.isNotEmpty) {
+            var userData = results.first;
+            var storedPassword = userData['password'] as String;
+            
+            // Verify password
+            bool passwordMatches;
+            if (PasswordUtils.isHashed(storedPassword)) {
+              passwordMatches = PasswordUtils.verifyPassword(
+                _passwordController.text,
+                storedPassword,
+              );
+            } else {
+              passwordMatches = _passwordController.text == storedPassword;
+            }
+            
+            if (passwordMatches) {
+              user = User.fromMap(userData);
+            }
+          }
+        } else if (_loginMethod == 'id') {
+          print('Authenticating with ID: ${_phoneController.text.trim()}');
+          // For ID login, we need to search by ID first, then authenticate
+          var client = await dbHelper.db;
+          var results = await client.query(
+            'users',
+            where: 'id = ? AND role = ?',
+            whereArgs: [int.tryParse(_phoneController.text.trim()) ?? 0, _selectedRole],
+          );
+          
+          if (results.isNotEmpty) {
+            var userData = results.first;
+            var storedPassword = userData['password'] as String;
+            
+            // Verify password
+            bool passwordMatches;
+            if (PasswordUtils.isHashed(storedPassword)) {
+              passwordMatches = PasswordUtils.verifyPassword(
+                _passwordController.text,
+                storedPassword,
+              );
+            } else {
+              passwordMatches = _passwordController.text == storedPassword;
+            }
+            
+            if (passwordMatches) {
+              user = User.fromMap(userData);
+            }
+          }
+        }
 
-        await _trackLoginAttempt(user, cleanInput);
-        setState(() => _isLoading = false);
+        if (user != null) {
+          print('Login successful for user: ${user.name} (ID: ${user.id})');
+          // Set current user in provider
+          userProvider.setCurrentUser(user);
 
-        if (user != null && user.role == _selectedRole) {
+          // Add session
           final sessionManager = SessionManager();
-          final dbHelper = DatabaseHelper();
-
-          await dbHelper.initDB();
-          await sessionManager.setLoginSession(user.id!, user.role);
+          await sessionManager.addSession(user.id!, user.role);
+          
+          // Set current user ID for this tab
+          await sessionManager.setCurrentUserId(user.id!);
 
           if (_rememberMe) {
             await sessionManager.setRememberMe(_phoneController.text.trim());
@@ -178,38 +229,54 @@ class _LoginScreenState extends State<LoginScreen> {
             await sessionManager.clearRememberMe();
           }
 
-          userProvider.setCurrentUser(user);
+          final notificationProvider = Provider.of<NotificationProvider>(
+            context,
+            listen: false,
+          );
+          await notificationProvider.loadNotifications(user.id!, user.role);
 
-          final notificationProvider =
-              Provider.of<NotificationProvider>(context, listen: false);
-          await notificationProvider.loadNotifications(
-              user.id!, user.role);
-
+          // Navigate to appropriate dashboard
           if (user.role == 'admin') {
+            print('Navigating to Admin Dashboard');
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
             );
           } else {
+            print('Navigating to Worker Dashboard');
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const WorkerDashboardScreen()),
             );
           }
         } else {
+          print('Login failed - Invalid credentials or role mismatch');
           Fluttertoast.showToast(
             msg: 'Invalid credentials or role mismatch',
             backgroundColor: Colors.red,
           );
+          // Reset loading state on login failure
+          setState(() => _isLoading = false);
         }
+      } catch (e, stackTrace) {
+        print('=== LOGIN ERROR ===');
+        print('Error type: ${e.runtimeType}');
+        print('Error message: $e');
+        print('Stack trace: $stackTrace');
+        print('===================');
+        
+        setState(() => _isLoading = false);
+        
+        // Use the error reporter to handle the error
+        ErrorReporter.reportError(e, stackTrace, context: 'User Login');
+        
+        String errorMessage = ErrorReporter.getErrorMessage(e);
+        
+        Fluttertoast.showToast(
+          msg: errorMessage,
+          backgroundColor: Colors.red,
+        );
       }
-    } catch (e) {
-      print('Login error: $e');
-      setState(() => _isLoading = false);
-      Fluttertoast.showToast(
-        msg: 'An error occurred. Please try again.',
-        backgroundColor: Colors.red,
-      );
     }
   }
 
@@ -224,10 +291,7 @@ class _LoginScreenState extends State<LoginScreen> {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF1E88E5),
-                Color(0xFF0D47A1),
-              ],
+              colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
             ),
           ),
           child: SingleChildScrollView(
@@ -246,7 +310,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(25),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
+                          color: Colors.black.withValues(alpha: 0.2),
                           blurRadius: 15,
                           offset: const Offset(0, 8),
                         ),
@@ -285,7 +349,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
+                          color: Colors.black.withValues(alpha: 0.15),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
@@ -359,16 +423,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                 prefixIcon: Icons.lock,
                                 obscureText: _isObscure,
                                 suffixIcon: IconButton(
-                                  icon: Icon(_isObscure
-                                      ? Icons.visibility_off
-                                      : Icons.visibility),
+                                  icon: Icon(
+                                    _isObscure
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                  ),
                                   onPressed: () {
                                     setState(() {
                                       _isObscure = !_isObscure;
                                     });
                                   },
                                 ),
-                                validator: Validators.validatePassword,
+                                validator: Validators.validatePasswordForLogin,
                               ),
 
                               const SizedBox(height: 15),
@@ -453,9 +519,7 @@ class _LoginScreenState extends State<LoginScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: _selectedRole == role
-                    ? Colors.white
-                    : Colors.grey[700],
+                color: _selectedRole == role ? Colors.white : Colors.grey[700],
               ),
             ),
           ),
@@ -482,9 +546,7 @@ class _LoginScreenState extends State<LoginScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: _loginMethod == method
-                    ? Colors.white
-                    : Colors.grey[700],
+                color: _loginMethod == method ? Colors.white : Colors.grey[700],
               ),
             ),
           ),

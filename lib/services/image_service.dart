@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import '../utils/logger.dart';
 
 class ImageService {
   static final ImagePicker _picker = ImagePicker();
@@ -23,7 +24,7 @@ class ImageService {
       }
       return null;
     } catch (e) {
-      print('Error picking image from gallery: $e');
+      Logger.error('Error picking image from gallery: $e', e);
       return null;
     }
   }
@@ -43,7 +44,7 @@ class ImageService {
       }
       return null;
     } catch (e) {
-      print('Error picking image from camera: $e');
+      Logger.error('Error picking image from camera: $e', e);
       return null;
     }
   }
@@ -76,7 +77,7 @@ class ImageService {
         return localFile.path;
       }
     } catch (e) {
-      print('Error saving image: $e');
+      Logger.error('Error saving image: $e', e);
       return image.path;
     }
   }
@@ -104,7 +105,7 @@ class ImageService {
       }
       return false;
     } catch (e) {
-      print('Error deleting image: $e');
+      Logger.error('Error deleting image: $e', e);
       return false;
     }
   }

@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
+import '../utils/logger.dart';
 
 class WhatsAppService {
   static final WhatsAppService _instance = WhatsAppService._internal();
@@ -34,7 +35,7 @@ class WhatsAppService {
       _otpStore[cleanPhone] = otp;
       _otpExpiry[cleanPhone] = DateTime.now().add(const Duration(minutes: 5));
       
-      print('Generated OTP for $cleanPhone: $otp (Valid for 5 minutes)');
+      Logger.info('Generated OTP for $cleanPhone: $otp (Valid for 5 minutes)');
       
       // Format phone number for WhatsApp (add country code if not present)
       String whatsappPhone = cleanPhone;
@@ -152,7 +153,7 @@ If you didn't request this, please ignore this message.
         
         return true;
       } else {
-        print('Could not launch WhatsApp');
+        Logger.warning('Could not launch WhatsApp');
         
         // Show OTP in dialog even if WhatsApp can't be launched
         if (context.mounted) {
@@ -202,7 +203,7 @@ If you didn't request this, please ignore this message.
         return true;
       }
     } catch (e) {
-      print('Error sending OTP: $e');
+      Logger.error('Error sending OTP: $e', e);
       return false;
     }
   }
@@ -213,13 +214,13 @@ If you didn't request this, please ignore this message.
     
     // Check if OTP exists
     if (!_otpStore.containsKey(cleanPhone)) {
-      print('No OTP found for $cleanPhone');
+      Logger.warning('No OTP found for $cleanPhone');
       return false;
     }
     
     // Check if OTP is expired
     if (_otpExpiry[cleanPhone]!.isBefore(DateTime.now())) {
-      print('OTP expired for $cleanPhone');
+      Logger.warning('OTP expired for $cleanPhone');
       _otpStore.remove(cleanPhone);
       _otpExpiry.remove(cleanPhone);
       return false;
@@ -229,12 +230,12 @@ If you didn't request this, please ignore this message.
     bool isValid = _otpStore[cleanPhone] == enteredOTP;
     
     if (isValid) {
-      print('OTP verified successfully for $cleanPhone');
+      Logger.info('OTP verified successfully for $cleanPhone');
       // Remove OTP after successful verification
       _otpStore.remove(cleanPhone);
       _otpExpiry.remove(cleanPhone);
     } else {
-      print('Invalid OTP for $cleanPhone. Expected: ${_otpStore[cleanPhone]}, Got: $enteredOTP');
+      Logger.warning('Invalid OTP for $cleanPhone. Expected: ${_otpStore[cleanPhone]}, Got: $enteredOTP');
     }
     
     return isValid;

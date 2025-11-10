@@ -66,7 +66,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
     final notificationProvider = Provider.of<NotificationProvider>(context);
 
     return SafeArea(

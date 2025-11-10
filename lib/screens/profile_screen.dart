@@ -28,7 +28,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
   String? _profilePhotoPath;
   String? _idProofPath;
-  String? _pendingEmail; // Email waiting for verification
 
   @override
   void initState() {
@@ -179,9 +178,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       
       if (emailVerified == true) {
         // Email was verified, update the UI
-        setState(() {
-          _pendingEmail = email;
-        });
         _loadUserData();
       }
     }
@@ -189,65 +185,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
+      // Check if email is entered but not verified
+      final email = _emailController.text.trim();
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final currentUser = userProvider.currentUser!;
+      
+      if (email.isNotEmpty) {
+        // If email has changed or is not verified, require verification
+        if (currentUser.email != email || currentUser.emailVerified != true) {
+          // Email is entered but not verified, show verification first
+          Fluttertoast.showToast(
+            msg: 'Please verify your email before saving',
+            backgroundColor: Colors.orange,
+            toastLength: Toast.LENGTH_LONG,
+          );
+          
+          // Trigger email verification automatically
+          await _sendVerificationEmail();
+          
+          // Check if email is now verified
+          // We need to get the updated user from the provider
+          final updatedUserProvider = Provider.of<UserProvider>(context, listen: false);
+          final updatedCurrentUser = updatedUserProvider.currentUser!;
+          
+          if (updatedCurrentUser.email == email && updatedCurrentUser.emailVerified == true) {
+            // Email is now verified, continue with save
+            await _performSaveProfile();
+          }
+          return;
+        }
+      }
+      
+      // No email or email already verified, proceed normally
+      await _performSaveProfile();
+    }
+  }
+  
+  Future<void> _performSaveProfile() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final currentUser = userProvider.currentUser!;
+
+      print('Saving profile...');
+      print('Profile photo path: $_profilePhotoPath');
+      print('ID proof path: $_idProofPath');
+      print('Email: ${_emailController.text.trim()}');
+      print('Address: ${_addressController.text.trim()}');
+
+      final updatedUser = currentUser.copyWith(
+        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+        profilePhoto: _profilePhotoPath,
+        idProof: _idProofPath,
+      );
+
+      print('Calling updateUser...');
+      final success = await userProvider.updateUser(updatedUser);
+      print('Update result: $success');
+
       setState(() {
-        _isLoading = true;
+        _isLoading = false;
+        if (success) {
+          _isEditing = false; // Only exit edit mode on success
+        }
       });
 
-      try {
-        final userProvider = Provider.of<UserProvider>(context, listen: false);
-        final currentUser = userProvider.currentUser!;
-
-        print('Saving profile...');
-        print('Profile photo path: $_profilePhotoPath');
-        print('ID proof path: $_idProofPath');
-        print('Email: ${_emailController.text.trim()}');
-        print('Address: ${_addressController.text.trim()}');
-
-        final updatedUser = currentUser.copyWith(
-          email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
-          address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-          profilePhoto: _profilePhotoPath,
-          idProof: _idProofPath,
-        );
-
-        print('Calling updateUser...');
-        final success = await userProvider.updateUser(updatedUser);
-        print('Update result: $success');
-
-        setState(() {
-          _isLoading = false;
-          if (success) {
-            _isEditing = false; // Only exit edit mode on success
-          }
-        });
-
-        if (success) {
-          Fluttertoast.showToast(
-            msg: 'Profile updated successfully!',
-            backgroundColor: Colors.green,
-            toastLength: Toast.LENGTH_LONG,
-          );
-          // Reload user data to refresh UI
-          _loadUserData();
-        } else {
-          Fluttertoast.showToast(
-            msg: 'Failed to update profile. Please try again.',
-            backgroundColor: Colors.red,
-            toastLength: Toast.LENGTH_LONG,
-          );
-        }
-      } catch (e) {
-        print('Error saving profile: $e');
-        setState(() {
-          _isLoading = false;
-          // Keep in edit mode so user can try again
-        });
+      if (success) {
         Fluttertoast.showToast(
-          msg: 'Error: ${e.toString()}',
+          msg: 'Profile updated successfully!',
+          backgroundColor: Colors.green,
+          toastLength: Toast.LENGTH_LONG,
+        );
+        // Reload user data to refresh UI
+        _loadUserData();
+      } else {
+        Fluttertoast.showToast(
+          msg: 'Failed to update profile. Please try again.',
           backgroundColor: Colors.red,
           toastLength: Toast.LENGTH_LONG,
         );
       }
+    } catch (e) {
+      print('Error saving profile: $e');
+      setState(() {
+        _isLoading = false;
+        // Keep in edit mode so user can try again
+      });
+      Fluttertoast.showToast(
+        msg: 'Error: ${e.toString()}',
+        backgroundColor: Colors.red,
+        toastLength: Toast.LENGTH_LONG,
+      );
     }
   }
 
@@ -451,7 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                     ),
                     const SizedBox(height: 10),
-                    if (_emailController.text.isNotEmpty)
+                    if (_emailController.text.isNotEmpty) ...[
                       ElevatedButton.icon(
                         onPressed: _sendVerificationEmail,
                         icon: Icon(
@@ -473,6 +505,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      if (user.email != _emailController.text.trim() || user.emailVerified != true)
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info, size: 16, color: Colors.orange),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Email verification required before saving changes',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.orange.shade800,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ],
                 )
               else
@@ -503,8 +562,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               const SizedBox(height: 15),
 
-              // Daily Wage (Read-only for workers)
-              if (user.role == 'worker')
+              // Daily Wage (Only visible to admins)
+              if (user.role == 'admin')
                 _buildInfoCard(
                   icon: Icons.currency_rupee,
                   label: 'Daily Wage',
@@ -615,13 +674,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(width: 15),
                     Expanded(
                       child: CustomButton(
-                        text: 'Save Changes',
+                        text: _emailController.text.isNotEmpty && 
+                               (user.email != _emailController.text.trim() || user.emailVerified != true)
+                            ? 'Verify & Save'
+                            : 'Save Changes',
                         onPressed: _saveProfile,
                         isLoading: _isLoading,
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 10),
+                if (_emailController.text.isNotEmpty && 
+                    (user.email != _emailController.text.trim() || user.emailVerified != true))
+                  Text(
+                    'Note: Email verification is required before saving',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
               ],
             ],
           ),

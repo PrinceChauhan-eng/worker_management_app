@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // Providers
@@ -13,13 +12,12 @@ import '../widgets/custom_app_bar.dart';
 import '../widgets/profile_menu_button.dart';
 
 // Screens
-import '../models/user.dart';
 import 'notifications_screen.dart';
 
 // Admin module screens
 import 'admin/dashboard_home_screen.dart';
 import 'admin/workers_screen.dart';
-import 'admin/attendance_screen.dart';
+import 'enhanced_attendance_screen.dart';
 import 'admin/salary_screen.dart';
 import 'admin/admin_reports_screen.dart';
 
@@ -31,18 +29,12 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  Map<String, int> _statistics = {
-    'total': 0,
-    'loggedIn': 0,
-    'absent': 0,
-  };
-  bool _isLoadingStats = true;
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
     DashboardHomeScreen(),
     WorkersScreen(),
-    AttendanceScreen(),
+    EnhancedAttendanceScreen(),
     SalaryScreen(),
     AdminReportsScreen(),
   ];
@@ -54,17 +46,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoadingStats = true);
-
-    final userProvider =
-        Provider.of<UserProvider>(context, listen: false);
-    final loginStatusProvider =
-        Provider.of<LoginStatusProvider>(context, listen: false);
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final loginStatusProvider = Provider.of<LoginStatusProvider>(
+      context,
+      listen: false,
+    );
 
     await userProvider.loadWorkers();
-    _statistics = await loginStatusProvider.getLoginStatistics();
-
-    setState(() => _isLoadingStats = false);
+    await loginStatusProvider.getLoginStatistics();
   }
 
   @override
@@ -87,8 +76,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                const NotificationsScreen(),
+                            builder: (context) => const NotificationsScreen(),
                           ),
                         );
                       },
@@ -112,8 +100,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           child: Text(
                             notificationProvider.unreadCount > 99
                                 ? '99+'
-                                : notificationProvider.unreadCount
-                                    .toString(),
+                                : notificationProvider.unreadCount.toString(),
                             style: GoogleFonts.poppins(
                               color: Colors.white,
                               fontSize: 8,
@@ -128,10 +115,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               },
             ),
 
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadData,
-            ),
+            IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
 
             const ProfileMenuButton(),
           ],
@@ -154,10 +138,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               icon: Icon(Icons.dashboard),
               label: 'Dashboard',
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.people),
-              label: 'Workers',
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Workers'),
             BottomNavigationBarItem(
               icon: Icon(Icons.check_circle),
               label: 'Attendance',

@@ -242,7 +242,7 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
                         onChanged: (v) => setState(() => _isLoggedIn = v),
                         activeThumbColor: const Color(0xFF4CAF50),
                         activeTrackColor:
-                            const Color(0xFF4CAF50).withOpacity(0.3),
+                            const Color(0xFF4CAF50).withValues(alpha: 0.3),
                       ),
                     ],
                   ),
@@ -272,7 +272,7 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

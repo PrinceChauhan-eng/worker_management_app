@@ -117,7 +117,7 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                 border: Border.all(color: Colors.grey.shade300),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
+                    color: Colors.grey.withValues(alpha: 0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -173,7 +173,7 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                         border: Border.all(color: Colors.grey.shade300),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
+                            color: Colors.grey.withValues(alpha: 0.1),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -203,7 +203,7 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF1E88E5).withOpacity(0.3),
+                          color: const Color(0xFF1E88E5).withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -305,7 +305,7 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -457,7 +457,7 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: color, size: 20),

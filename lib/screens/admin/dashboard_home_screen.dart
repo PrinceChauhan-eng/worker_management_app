@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import '../../models/login_status.dart';
+import '../../models/user.dart';
 import '../../providers/login_status_provider.dart';
+import '../../providers/user_provider.dart';
 import '../login_status_screen.dart';
 import '../manage_advances_screen.dart';
-import '../salary_advance_screen.dart';
+import '../advance_only_screen.dart';
 import '../process_salary_screen.dart';
 import '../salary_slips_screen.dart';
 import '../reports_screen.dart';
 import '../settings_screen.dart';
 
 class DashboardHomeScreen extends StatelessWidget {
+  const DashboardHomeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -38,7 +44,7 @@ class DashboardHomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 30),
-              
+
               // Statistics Cards
               Text(
                 'Today\'s Overview',
@@ -55,9 +61,10 @@ class DashboardHomeScreen extends StatelessWidget {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  
-                  final stats = snapshot.data ?? {'total': 0, 'loggedIn': 0, 'absent': 0};
-                  
+
+                  final stats =
+                      snapshot.data ?? {'total': 0, 'loggedIn': 0, 'absent': 0};
+
                   return Row(
                     children: [
                       Expanded(
@@ -90,9 +97,14 @@ class DashboardHomeScreen extends StatelessWidget {
                   );
                 },
               ),
-              
+
               const SizedBox(height: 30),
-              
+
+              // Worker Attendance Session Card
+              _buildWorkerAttendanceSessionCard(context),
+
+              const SizedBox(height: 30),
+
               // Quick Actions - Static section
               Text(
                 'Quick Actions',
@@ -106,13 +118,17 @@ class DashboardHomeScreen extends StatelessWidget {
               LayoutBuilder(
                 builder: (context, constraints) {
                   // Calculate item height based on screen size
-                  double itemHeight = (constraints.maxWidth / 2 - 15) * 1.2; // Maintain aspect ratio
-                  double totalHeight = itemHeight * 4 + 15 * 3; // 4 rows with spacing
-                  
+                  double itemHeight =
+                      (constraints.maxWidth / 2 - 15) *
+                      1.2; // Maintain aspect ratio
+                  double totalHeight =
+                      itemHeight * 4 + 15 * 3; // 4 rows with spacing
+
                   return SizedBox(
                     height: totalHeight,
                     child: GridView.count(
-                      physics: const NeverScrollableScrollPhysics(), // Disable scrolling since we're in a scrollable parent
+                      physics:
+                          const NeverScrollableScrollPhysics(), // Disable scrolling since we're in a scrollable parent
                       crossAxisCount: 2,
                       crossAxisSpacing: 15,
                       mainAxisSpacing: 15,
@@ -141,21 +157,23 @@ class DashboardHomeScreen extends StatelessWidget {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const ManageAdvancesScreen(),
+                                builder: (context) =>
+                                    const ManageAdvancesScreen(),
                               ),
                             );
                           },
                         ),
                         _buildQuickActionCard(
                           context,
-                          title: 'Salary Management',
+                          title: 'Advance Management',
                           icon: Icons.account_balance_wallet,
                           color: const Color(0xFFFFA726),
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const SalaryAdvanceScreen(),
+                                builder: (context) =>
+                                    const AdvanceOnlyScreen(),
                               ),
                             );
                           },
@@ -169,7 +187,8 @@ class DashboardHomeScreen extends StatelessWidget {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const ProcessSalaryScreen(),
+                                builder: (context) =>
+                                    const ProcessSalaryScreen(),
                               ),
                             );
                           },
@@ -230,7 +249,10 @@ class DashboardHomeScreen extends StatelessWidget {
   }
 
   Future<Map<String, int>> _getStatistics(BuildContext context) async {
-    final loginStatusProvider = Provider.of<LoginStatusProvider>(context, listen: false);
+    final loginStatusProvider = Provider.of<LoginStatusProvider>(
+      context,
+      listen: false,
+    );
     return await loginStatusProvider.getLoginStatistics();
   }
 
@@ -245,10 +267,10 @@ class DashboardHomeScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -270,10 +292,7 @@ class DashboardHomeScreen extends StatelessWidget {
           const SizedBox(height: 5),
           Text(
             title,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
+            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
           ),
         ],
       ),
@@ -295,7 +314,7 @@ class DashboardHomeScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.3),
+              color: color.withValues(alpha: 0.3),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -304,11 +323,7 @@ class DashboardHomeScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 32,
-              color: Colors.white,
-            ),
+            Icon(icon, size: 32, color: Colors.white),
             const SizedBox(height: 8),
             Text(
               title,
@@ -323,5 +338,183 @@ class DashboardHomeScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildWorkerAttendanceSessionCard(BuildContext context) {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Worker Attendance Sessions',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E88E5),
+                  ),
+                ),
+                Icon(
+                  Icons.people,
+                  color: const Color(0xFF1E88E5),
+                  size: 24,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Consumer<LoginStatusProvider>(
+              builder: (context, loginStatusProvider, _) {
+                return FutureBuilder<List<LoginStatus>>(
+                  future: loginStatusProvider.getCurrentlyLoggedInWorkers(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    }
+
+                    final loggedInWorkers = snapshot.data ?? [];
+
+                    if (loggedInWorkers.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No workers currently logged in',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      );
+                    }
+
+                    return SizedBox(
+                      height: 200,
+                      child: ListView.builder(
+                        itemCount: loggedInWorkers.length,
+                        itemBuilder: (context, index) {
+                          final loginStatus = loggedInWorkers[index];
+                          return _buildWorkerSessionItem(context, loginStatus);
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkerSessionItem(BuildContext context, LoginStatus loginStatus) {
+    return FutureBuilder<User?>(
+      future: Provider.of<UserProvider>(context, listen: false).getUser(loginStatus.workerId),
+      builder: (context, snapshot) {
+        final worker = snapshot.data;
+        final workerName = worker?.name ?? 'Unknown Worker';
+        final loginTime = (loginStatus.loginTime?.isNotEmpty ?? false)
+            ? DateFormat('hh:mm a').format(DateFormat('HH:mm:ss').parse(loginStatus.loginTime!))
+            : 'Unknown';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: const Color(0xFF4CAF50),
+              child: Icon(
+                Icons.check_circle,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              workerName,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              'Logged in at $loginTime',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+              ),
+            ),
+            trailing: ElevatedButton(
+              onPressed: () {
+                // Mark worker as logged out
+                _markWorkerAsLoggedOut(context, loginStatus);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF44336),
+                minimumSize: const Size(80, 30),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: Text(
+                'Logout',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _markWorkerAsLoggedOut(BuildContext context, LoginStatus loginStatus) async {
+    try {
+      final loginStatusProvider = Provider.of<LoginStatusProvider>(context, listen: false);
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      
+      // Get worker details
+      final worker = await userProvider.getUser(loginStatus.workerId);
+      if (worker == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Worker not found')),
+        );
+        return;
+      }
+
+      // Update login status to logged out
+      final updatedLoginStatus = LoginStatus(
+        id: loginStatus.id,
+        workerId: loginStatus.workerId,
+        date: loginStatus.date,
+        loginTime: loginStatus.loginTime,
+        logoutTime: DateFormat('HH:mm:ss').format(DateTime.now()),
+        isLoggedIn: false,
+      );
+
+      await loginStatusProvider.updateLoginStatus(updatedLoginStatus);
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${worker.name} has been logged out'),
+          backgroundColor: const Color(0xFF4CAF50),
+        ),
+      );
+
+      // Refresh the card
+      (context as Element).markNeedsBuild();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error logging out worker: $e'),
+          backgroundColor: const Color(0xFFF44336),
+        ),
+      );
+    }
   }
 }

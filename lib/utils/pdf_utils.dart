@@ -66,7 +66,7 @@ class PdfUtils {
                 ],
               ),
               pw.SizedBox(height: 30),
-              pw.Table.fromTextArray(
+              pw.TableHelper.fromTextArray(
                 headers: ['Description', 'Amount'],
                 data: [
                   ['Present Days', '${salary.presentDays ?? 0}'],

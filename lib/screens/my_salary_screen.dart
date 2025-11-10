@@ -70,7 +70,7 @@ class _MySalaryScreenState extends State<MySalaryScreen> {
         ? salaryProvider.salaries
             .where((sal) => 
                 sal.workerId == workerId && 
-                sal.month == _selectedMonth)
+                sal.month.startsWith(_selectedMonth))
             .toList()
         : [];
     
@@ -79,9 +79,6 @@ class _MySalaryScreenState extends State<MySalaryScreen> {
     return Scaffold(
       appBar: CustomAppBar(
         title: 'My Salary',
-        onLeadingPressed: () {
-          Navigator.pop(context);
-        },
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -259,11 +256,13 @@ class _MySalaryScreenState extends State<MySalaryScreen> {
                                   Icons.calendar_today,
                                 ),
                                 const Divider(),
-                                _buildBreakdownItem(
-                                  'Daily Wage',
-                                  '₹${userProvider.currentUser?.wage.toStringAsFixed(2) ?? "0.00"}',
-                                  Icons.account_balance,
-                                ),
+                                // Daily Wage (Only visible to admins)
+                                if (userProvider.currentUser?.role == 'admin')
+                                  _buildBreakdownItem(
+                                    'Daily Wage',
+                                    '₹${userProvider.currentUser?.wage.toStringAsFixed(2) ?? "0.00"}',
+                                    Icons.account_balance,
+                                  ),
                                 const Divider(),
                                 _buildBreakdownItem(
                                   'Gross Salary',

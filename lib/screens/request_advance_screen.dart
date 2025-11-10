@@ -8,6 +8,8 @@ import '../models/notification.dart';
 import '../providers/user_provider.dart';
 import '../providers/advance_provider.dart';
 import '../providers/notification_provider.dart';
+import '../services/database_helper.dart';
+import '../utils/logger.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
@@ -23,6 +25,7 @@ class _RequestAdvanceScreenState extends State<RequestAdvanceScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
+  final _dbHelper = DatabaseHelper();
   
   String? _selectedPurpose;
   bool _isLoading = false;
@@ -71,6 +74,13 @@ class _RequestAdvanceScreenState extends State<RequestAdvanceScreen> {
         status: 'pending',
       );
 
+      // Force database upgrade before inserting advance
+      try {
+        await _dbHelper.forceUpgrade();
+      } catch (e) {
+        Logger.error('Error forcing database upgrade: $e', e);
+      }
+      
       bool success = await advanceProvider.addAdvance(advance);
 
       setState(() {
@@ -99,7 +109,7 @@ class _RequestAdvanceScreenState extends State<RequestAdvanceScreen> {
         Navigator.pop(context);
       } else {
         Fluttertoast.showToast(
-          msg: 'Failed to submit request. Please try again.',
+          msg: 'Failed to submit advance request. Please check your network connection and try again.',
           backgroundColor: Colors.red,
         );
       }

@@ -1,0 +1,445 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import '../../providers/user_provider.dart';
+import '../../providers/login_status_provider.dart';
+import '../../models/user.dart';
+import '../../models/login_status.dart';
+import '../../models/notification.dart';
+import '../../widgets/custom_app_bar.dart';
+import '../../services/database_helper.dart';
+import '../../utils/logger.dart';
+
+class WorkerAttendanceScreen extends StatefulWidget {
+  const WorkerAttendanceScreen({super.key});
+
+  @override
+  State<WorkerAttendanceScreen> createState() => _WorkerAttendanceScreenState();
+}
+
+class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
+  User? _selectedWorker;
+  DateTime _selectedDate = DateTime.now();
+
+  @override
+  Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final workers = userProvider.workers
+        .where((u) => u.role == 'worker')
+        .toList();
+
+    return Scaffold(
+      appBar: CustomAppBar(
+        title: 'Worker Attendance',
+        onLeadingPressed: () => Navigator.pop(context),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Mark Attendance',
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF1E88E5),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Mark workers as present or absent',
+              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 30),
+
+            // Worker Selection
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withValues(alpha: 0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<User>(
+                  isExpanded: true,
+                  hint: Text(
+                    'Select Worker',
+                    style: GoogleFonts.poppins(
+                      color: Colors.grey[600],
+                      fontSize: 16,
+                    ),
+                  ),
+                  value: _selectedWorker,
+                  items: workers.map((worker) {
+                    return DropdownMenuItem<User>(
+                      value: worker,
+                      child: Text(
+                        worker.name,
+                        style: GoogleFonts.poppins(fontSize: 16),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (User? worker) {
+                    setState(() {
+                      _selectedWorker = worker;
+                    });
+                  },
+                  icon: const Icon(
+                    Icons.arrow_drop_down,
+                    color: Color(0xFF1E88E5),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Date Selection
+            if (_selectedWorker != null)
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Selected Date',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          DateFormat(
+                            'EEEE, MMM dd, yyyy',
+                          ).format(_selectedDate),
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _selectDate,
+                      icon: const Icon(Icons.calendar_today, size: 18),
+                      label: Text('Change Date', style: GoogleFonts.poppins()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E88E5),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 30),
+
+            // Action Buttons
+            if (_selectedWorker != null)
+              Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _markAttendance('present'),
+                      icon: const Icon(Icons.check_circle, size: 20),
+                      label: Text(
+                        'Mark Present',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _markAttendance('absent'),
+                      icon: const Icon(Icons.cancel, size: 20),
+                      label: Text(
+                        'Mark Absent',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+            const SizedBox(height: 30),
+
+            // Today's Status
+            if (_selectedWorker != null)
+              FutureBuilder<LoginStatus?>(
+                future: _getTodayStatus(_selectedWorker!),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return Text('Error: ${snapshot.error}');
+                  }
+
+                  final status = snapshot.data;
+                  bool isPresent = status != null && status.isLoggedIn;
+                  bool hasRecord = status != null;
+
+                  return Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Today\'s Status',
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        if (!hasRecord)
+                          Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info, color: Colors.orange),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'No attendance record for today',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              color: isPresent
+                                  ? Colors.green.shade50
+                                  : Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isPresent ? Icons.check_circle : Icons.cancel,
+                                  color: isPresent ? Colors.green : Colors.red,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  isPresent ? 'Present' : 'Absent',
+                                  style: GoogleFonts.poppins(
+                                    color: isPresent
+                                        ? Colors.green
+                                        : Colors.red,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (status.loginTime != null)
+                                  Text(
+                                    'Login: ${status.loginTime}',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
+  Future<LoginStatus?> _getTodayStatus(User worker) async {
+    final loginStatusProvider = Provider.of<LoginStatusProvider>(
+      context,
+      listen: false,
+    );
+    String dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    return await loginStatusProvider.getLoginStatusForDate(worker.id!, dateStr);
+  }
+
+  Future<void> _markAttendance(String status) async {
+    if (_selectedWorker == null) return;
+
+    try {
+      final loginStatusProvider = Provider.of<LoginStatusProvider>(
+        context,
+        listen: false,
+      );
+      final dbHelper = DatabaseHelper();
+      String dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      String timeStr = DateFormat('HH:mm:ss').format(DateTime.now());
+
+      // Check if there's already a record for this date
+      LoginStatus? existingStatus = await loginStatusProvider
+          .getLoginStatusForDate(_selectedWorker!.id!, dateStr);
+
+      LoginStatus loginStatus;
+
+      if (status == 'present') {
+        // Update existing record or create new one
+        loginStatus = LoginStatus(
+          id: existingStatus?.id, // Handle nullable existingStatus
+          workerId: _selectedWorker!.id!,
+          date: dateStr,
+          loginTime: existingStatus?.loginTime ?? timeStr, // Handle nullable existingStatus
+          logoutTime: existingStatus?.logoutTime, // Handle nullable existingStatus
+          isLoggedIn: true,
+        );
+      } else {
+        // For absent, we create a record with login time but mark as not logged in
+        // Update existing record to absent
+        loginStatus = LoginStatus(
+          id: existingStatus?.id, // Handle nullable existingStatus
+          workerId: _selectedWorker!.id!,
+          date: dateStr,
+          loginTime: existingStatus?.loginTime, // Handle nullable existingStatus
+          logoutTime: existingStatus?.logoutTime, // Handle nullable existingStatus
+          isLoggedIn: false,
+        );
+      }
+
+      // Save to database
+      if (loginStatus.id != null) {
+        await loginStatusProvider.updateLoginStatus(loginStatus);
+      } else {
+        await dbHelper.insertLoginStatus(loginStatus);
+      }
+
+      // Send notification to worker about attendance update
+      await _sendAttendanceNotification(_selectedWorker!, status, dateStr);
+
+      // Show success message
+      Fluttertoast.showToast(
+        msg:
+            'Marked as ${status.toUpperCase()} for ${DateFormat('MMM dd, yyyy').format(_selectedDate)}',
+        backgroundColor: status == 'present' ? Colors.green : Colors.red,
+      );
+
+      // Refresh the UI
+      setState(() {});
+    } catch (e) {
+      Fluttertoast.showToast(
+        msg: 'Error marking attendance: $e',
+        backgroundColor: Colors.red,
+      );
+    }
+  }
+
+  Future<void> _sendAttendanceNotification(
+    User worker,
+    String status,
+    String date,
+  ) async {
+    try {
+      final dbHelper = DatabaseHelper();
+
+      // Create notification for the worker
+      final notification = NotificationModel(
+        title: 'Attendance Updated',
+        message:
+            'Your attendance for $date has been marked as ${status.toUpperCase()} by admin',
+        type: 'attendance',
+        userId: worker.id!,
+        userRole: worker.role,
+        isRead: false,
+        createdAt: DateTime.now().toIso8601String(),
+        relatedId: date, // Store the date as related ID
+      );
+
+      await dbHelper.insertNotification(notification);
+
+      Logger.info('Attendance notification sent to worker ID: ${worker.id}');
+    } catch (e) {
+      Logger.error('Error sending attendance notification: $e', e);
+    }
+  }
+}

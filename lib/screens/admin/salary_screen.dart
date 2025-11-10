@@ -6,6 +6,8 @@ import '../salary_advance_screen.dart';
 import '../reports_screen.dart';
 
 class SalaryScreen extends StatelessWidget {
+  const SalaryScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -24,23 +26,23 @@ class SalaryScreen extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             'Process salaries and manage advances',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
+            style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
           ),
           const SizedBox(height: 30),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 // Calculate item height based on screen size
-                double itemHeight = (constraints.maxWidth / 2 - 20) * 1.2; // Maintain aspect ratio
+                double itemHeight =
+                    (constraints.maxWidth / 2 - 20) *
+                    1.2; // Maintain aspect ratio
                 double totalHeight = itemHeight * 2 + 20; // 2 rows with spacing
-                
+
                 return SizedBox(
                   height: totalHeight,
                   child: GridView.count(
-                    physics: const NeverScrollableScrollPhysics(), // Disable scrolling since we're in a scrollable parent
+                    physics:
+                        const NeverScrollableScrollPhysics(), // Disable scrolling since we're in a scrollable parent
                     crossAxisCount: 2,
                     crossAxisSpacing: 20,
                     mainAxisSpacing: 20,
@@ -69,7 +71,8 @@ class SalaryScreen extends StatelessWidget {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const ManageAdvancesScreen(),
+                              builder: (context) =>
+                                  const ManageAdvancesScreen(),
                             ),
                           );
                         },
@@ -128,7 +131,7 @@ class SalaryScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.grey.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -140,7 +143,7 @@ class SalaryScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(50),
               ),
               child: Icon(icon, color: color, size: 30),

@@ -21,7 +21,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _isLoading = false;
   bool _showOtpField = false;
   String? _generatedOtp;
-  int? _userId;
 
   @override
   void dispose() {
@@ -50,7 +49,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           // Generate 6-digit OTP
           final otp = _generateOTP();
           _generatedOtp = otp;
-          _userId = user.id;
           
           // In real app, send OTP via SMS
           // For demo, show in toast

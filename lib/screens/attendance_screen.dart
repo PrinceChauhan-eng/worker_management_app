@@ -22,6 +22,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   final Map<int, bool> _attendanceStatus = {};
   final Map<int, String> _inTime = {};
   final Map<int, String> _outTime = {};
+  final Map<int, int?> _attendanceIds = {}; // Track existing attendance record IDs
 
   @override
   void initState() {
@@ -29,13 +30,52 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       userProvider.loadWorkers();
+      _loadExistingAttendance(); // Load existing attendance for selected date
     });
+  }
+
+  Future<void> _loadExistingAttendance() async {
+    final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    
+    // Load attendances for the selected date
+    await attendanceProvider.loadAttendances();
+    
+    // Clear existing maps
+    _attendanceStatus.clear();
+    _inTime.clear();
+    _outTime.clear();
+    _attendanceIds.clear();
+    
+    // Populate with existing attendance data for the selected date
+    for (var worker in userProvider.workers) {
+      if (worker.role == 'worker') {
+        final existingAttendance = attendanceProvider.attendances
+            .where((att) => att.workerId == worker.id && att.date == _selectedDate)
+            .toList();
+        
+        if (existingAttendance.isNotEmpty) {
+          final att = existingAttendance.first;
+          _attendanceIds[worker.id!] = att.id;
+          _attendanceStatus[worker.id!] = att.present;
+          if (att.inTime.isNotEmpty) _inTime[worker.id!] = att.inTime;
+          if (att.outTime.isNotEmpty) _outTime[worker.id!] = att.outTime;
+        } else {
+          // Set default values for new attendance records
+          _attendanceStatus[worker.id!] = false;
+          _inTime[worker.id!] = '09:00';
+          _outTime[worker.id!] = '17:00';
+        }
+      }
+    }
+    
+    setState(() {});
   }
 
   _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: DateTime.parse(_selectedDate),
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );
@@ -43,6 +83,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       setState(() {
         _selectedDate = DateFormat('yyyy-MM-dd').format(picked);
       });
+      // Load existing attendance for the newly selected date
+      await _loadExistingAttendance();
     }
   }
 
@@ -51,8 +93,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       _isLoading = true;
     });
 
-    final attendanceProvider =
-        Provider.of<AttendanceProvider>(context, listen: false);
+    final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
     final userProvider = Provider.of<UserProvider>(context, listen: false);
 
     bool allSaved = true;
@@ -63,9 +104,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         bool isPresent = _attendanceStatus[worker.id!] ?? false;
         String inTime = _inTime[worker.id!] ?? '09:00';
         String outTime = _outTime[worker.id!] ?? '17:00';
+        
+        // Get existing attendance ID if available
+        int? attendanceId = _attendanceIds[worker.id!];
 
-        // Create attendance object
+        // Create or update attendance object
         final attendance = Attendance(
+          id: attendanceId, // Will be null for new records
           workerId: worker.id!,
           date: _selectedDate,
           inTime: isPresent ? inTime : '',
@@ -73,8 +118,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           present: isPresent,
         );
 
-        // Save attendance
-        bool success = await attendanceProvider.addAttendance(attendance);
+        bool success;
+        if (attendanceId != null) {
+          // Update existing attendance record
+          success = await attendanceProvider.updateAttendance(attendance);
+        } else {
+          // Insert new record for both present and absent workers
+          success = await attendanceProvider.addAttendance(attendance);
+        }
+        
         if (!success) {
           allSaved = false;
         }
@@ -91,6 +143,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
       );
+      // Reload attendance data to reflect changes
+      await _loadExistingAttendance();
     } else {
       Fluttertoast.showToast(
         msg: 'Failed to save attendance. Please try again.',

@@ -15,7 +15,7 @@ class MySalarySlipsScreen extends StatefulWidget {
 }
 
 class _MySalarySlipsScreenState extends State<MySalarySlipsScreen> {
-  String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now());
+  final String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now());
   List<Salary> _paidSalaries = [];
   bool _isLoading = true;
 
@@ -37,14 +37,33 @@ class _MySalarySlipsScreenState extends State<MySalarySlipsScreen> {
       // Load all data
       await salaryProvider.loadSalaries();
       
-      // Filter for paid salaries of the current user
+      // Filter for paid salaries of the current user and selected month
       _paidSalaries = salaryProvider.salaries
           .where((salary) => 
               salary.paid && 
-              salary.workerId == userProvider.currentUser!.id)
+              salary.workerId == userProvider.currentUser!.id &&
+              salary.month.startsWith(_selectedMonth))
           .toList();
+
+      print('Found ${_paidSalaries.length} paid salaries for worker ID ${userProvider.currentUser!.id} and month $_selectedMonth');
+      
+      // Also print details of each salary for debugging
+      for (var salary in _paidSalaries) {
+        print('Salary ID: ${salary.id}, Worker ID: ${salary.workerId}, Month: ${salary.month}, Paid: ${salary.paid}');
+      }
     } catch (e) {
       print('Error loading paid salaries: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error loading paid salaries: $e',
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -52,21 +71,6 @@ class _MySalarySlipsScreenState extends State<MySalarySlipsScreen> {
     }
   }
 
-  _selectMonth(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-      initialDatePickerMode: DatePickerMode.year,
-    );
-    if (picked != null) {
-      setState(() {
-        _selectedMonth = DateFormat('yyyy-MM').format(picked);
-      });
-      _loadPaidSalaries();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {

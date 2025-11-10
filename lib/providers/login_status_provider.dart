@@ -4,6 +4,7 @@ import '../models/user.dart';
 import '../services/database_helper.dart';
 // Removed location_service import since we're removing location features
 import 'package:intl/intl.dart';
+import '../utils/logger.dart';
 
 class LoginStatusProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper();
@@ -21,7 +22,7 @@ class LoginStatusProvider with ChangeNotifier {
       _loginStatuses = await _dbHelper.getLoginStatuses();
       notifyListeners();
     } catch (e) {
-      print('Error loading login statuses: $e');
+      Logger.error('Error loading login statuses: $e', e);
     }
   }
 
@@ -31,7 +32,17 @@ class LoginStatusProvider with ChangeNotifier {
       _loginStatuses = await _dbHelper.getLoginStatusesByWorkerId(workerId);
       notifyListeners();
     } catch (e) {
-      print('Error loading login statuses for worker: $e');
+      Logger.error('Error loading login statuses for worker: $e', e);
+    }
+  }
+
+  // Get login status for a specific worker and date
+  Future<LoginStatus?> getLoginStatusForDate(int workerId, String date) async {
+    try {
+      return await _dbHelper.getTodayLoginStatus(workerId, date);
+    } catch (e) {
+      Logger.error('Error getting login status for date: $e', e);
+      return null;
     }
   }
 
@@ -43,18 +54,19 @@ class LoginStatusProvider with ChangeNotifier {
       _isLoggedIn = _todayLoginStatus?.isLoggedIn ?? false;
       notifyListeners();
     } catch (e) {
-      print('Error checking today login status: $e');
+      Logger.error('Error checking today login status: $e', e);
     }
   }
 
   // Worker login without location verification
   Future<Map<String, dynamic>> workerLogin(User worker) async {
     try {
-      // Check if worker already has a login status for today
       String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      String currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
+      
+      // Check if there's already a login status for today
       LoginStatus? existingStatus = await _dbHelper.getTodayLoginStatus(worker.id!, today);
       
-      String currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
       LoginStatus loginStatus;
       
       if (existingStatus != null) {
@@ -88,11 +100,11 @@ class LoginStatusProvider with ChangeNotifier {
 
       return {
         'success': true,
-        'message': 'Login successful! Attendance marked.',
+        'message': 'Login successful! Attendance marked as present.',
         'loginStatus': loginStatus,
       };
     } catch (e) {
-      print('Error during worker login: $e');
+      Logger.error('Error during worker login: $e', e);
       return {
         'success': false,
         'message': 'Error during login: $e',
@@ -100,7 +112,7 @@ class LoginStatusProvider with ChangeNotifier {
     }
   }
 
-  // Worker logout without location verification
+  // Worker logout without location verification and without 8-hour requirement
   Future<Map<String, dynamic>> workerLogout(User worker) async {
     try {
       // Check if worker is logged in
@@ -114,26 +126,8 @@ class LoginStatusProvider with ChangeNotifier {
         };
       }
 
-      // Check if 8 hours have passed since login
-      if (todayStatus.loginTime != null) {
-        try {
-          final loginTime = DateTime.parse('$today ${todayStatus.loginTime}');
-          final currentTime = DateTime.now();
-          final duration = currentTime.difference(loginTime);
-          final hoursWorked = duration.inMinutes / 60.0;
-          
-          if (hoursWorked < 8.0) {
-            final remainingHours = 8.0 - hoursWorked;
-            return {
-              'success': false,
-              'message': 'You must work at least 8 hours. ${remainingHours.toStringAsFixed(1)} hours remaining.',
-            };
-          }
-        } catch (e) {
-          print('Error calculating work duration: $e');
-          // If there's an error in calculation, we'll allow logout but log the error
-        }
-      }
+      // Remove the 8-hour work requirement check
+      // Workers can now logout at any time after logging in
 
       // Update login status with logout information
       String currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
@@ -154,11 +148,8 @@ class LoginStatusProvider with ChangeNotifier {
       _isLoggedIn = false;
       notifyListeners();
 
-      // Calculate and display working hours (capped at 8 hours for display)
+      // Calculate and display working hours
       double workingHours = updatedStatus.workingHours;
-      if (workingHours > 8.0) {
-        workingHours = 8.0;
-      }
 
       return {
         'success': true,
@@ -166,7 +157,7 @@ class LoginStatusProvider with ChangeNotifier {
         'loginStatus': updatedStatus,
       };
     } catch (e) {
-      print('Error during worker logout: $e');
+      Logger.error('Error during worker logout: $e', e);
       return {
         'success': false,
         'message': 'Error during logout: $e',
@@ -191,7 +182,7 @@ class LoginStatusProvider with ChangeNotifier {
       
       notifyListeners();
     } catch (e) {
-      print('Error updating login status: $e');
+      Logger.error('Error updating login status: $e', e);
       rethrow;
     }
   }
@@ -201,7 +192,7 @@ class LoginStatusProvider with ChangeNotifier {
     try {
       return await _dbHelper.getCurrentlyLoggedInWorkers();
     } catch (e) {
-      print('Error getting logged in workers: $e');
+      Logger.error('Error getting logged in workers: $e', e);
       return [];
     }
   }
@@ -212,11 +203,19 @@ class LoginStatusProvider with ChangeNotifier {
       List<User> allWorkers = await _dbHelper.getUsers();
       List<User> workers = allWorkers.where((u) => u.role == 'worker').toList();
       
-      List<LoginStatus> loggedInWorkers = await getCurrentlyLoggedInWorkers();
+      // Get today's date
+      String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      
+      // Get all login statuses for today
+      List<LoginStatus> todayLoginStatuses = await _dbHelper.getTodayLoginStatuses(today);
+      
+      // Count unique workers with login statuses for today
+      Set<int> workersWithTodayStatus = todayLoginStatuses.map((status) => status.workerId).toSet();
       
       int totalWorkers = workers.length;
-      int loggedIn = loggedInWorkers.length;
-      int absent = totalWorkers - loggedIn;
+      int loggedIn = todayLoginStatuses.where((status) => status.isLoggedIn).length;
+      // Absent workers are those who don't have a login status for today or have a status but are not logged in
+      int absent = totalWorkers - workersWithTodayStatus.length;
 
       return {
         'total': totalWorkers,
@@ -224,7 +223,7 @@ class LoginStatusProvider with ChangeNotifier {
         'absent': absent,
       };
     } catch (e) {
-      print('Error getting login statistics: $e');
+      Logger.error('Error getting login statistics: $e', e);
       return {
         'total': 0,
         'loggedIn': 0,

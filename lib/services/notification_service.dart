@@ -3,6 +3,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
 import '../models/notification.dart';
 import '../services/database_helper.dart';
+import '../utils/logger.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -42,7 +43,7 @@ class NotificationService {
         NotificationResponse notificationResponse,
       ) async {
         // Handle notification tap
-        print('Notification tapped: ${notificationResponse.payload}');
+        Logger.info('Notification tapped: ${notificationResponse.payload}');
       },
     );
   }

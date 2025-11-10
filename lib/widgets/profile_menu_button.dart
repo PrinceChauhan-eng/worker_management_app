@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/user_provider.dart';
 import '../services/session_manager.dart';
 import '../screens/profile_screen.dart';
+import '../screens/admin_profile_screen.dart'; // Import the new admin profile screen
 import '../screens/settings_screen.dart';
 import '../screens/login_screen.dart';
 
@@ -20,6 +21,7 @@ class ProfileMenuButton extends StatelessWidget {
 
     final completionPercentage = user.profileCompletionPercentage;
     final hasProfilePhoto = user.profilePhoto != null && user.profilePhoto!.isNotEmpty;
+    final isAdmin = user.role == 'admin';
 
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -184,7 +186,7 @@ class ProfileMenuButton extends StatelessWidget {
             ),
           ),
           
-          // My Profile
+          // My Profile (different screens for admin and worker)
           PopupMenuItem<String>(
             value: 'profile',
             child: Row(
@@ -192,7 +194,7 @@ class ProfileMenuButton extends StatelessWidget {
                 const Icon(Icons.person, color: Color(0xFF1E88E5), size: 20),
                 const SizedBox(width: 12),
                 Text(
-                  'My Profile',
+                  isAdmin ? 'Admin Profile' : 'My Profile',
                   style: GoogleFonts.poppins(fontSize: 14),
                 ),
               ],
@@ -241,7 +243,9 @@ class ProfileMenuButton extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const ProfileScreen(),
+                  builder: (context) => isAdmin 
+                    ? const AdminProfileScreen() // Use enhanced admin profile screen
+                    : const ProfileScreen(),     // Use regular profile screen for workers
                 ),
               );
               break;
@@ -256,7 +260,7 @@ class ProfileMenuButton extends StatelessWidget {
               break;
               
             case 'logout':
-              _handleLogout(context, userProvider);
+              _handleLogout(context);
               break;
           }
         },
@@ -264,17 +268,16 @@ class ProfileMenuButton extends StatelessWidget {
     );
   }
 
-  Future<void> _handleLogout(BuildContext context, UserProvider userProvider) async {
+  Future<void> _handleLogout(BuildContext context) async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    
     // Show confirmation dialog
-    final confirmed = await showDialog<bool>(
+    bool? confirmed = await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
+      builder: (BuildContext context) => AlertDialog(
         title: Text(
-          'Logout',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          'Confirm Logout',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
         content: Text(
           'Are you sure you want to logout?',
@@ -306,12 +309,16 @@ class ProfileMenuButton extends StatelessWidget {
       ),
     );
 
+    // Check if context is still mounted before proceeding
     if (confirmed == true && context.mounted) {
-      // Clear session
+      // Remove session for current user in this tab only
       SessionManager sessionManager = SessionManager();
-      await sessionManager.logout();
+      if (userProvider.currentUser != null) {
+        // Clear current user ID for this tab only
+        await sessionManager.clearCurrentUserId();
+      }
       
-      // Clear current user in provider
+      // Clear current user in provider for this tab
       userProvider.clearCurrentUser();
       
       // Show toast
@@ -320,8 +327,9 @@ class ProfileMenuButton extends StatelessWidget {
         backgroundColor: Colors.green,
       );
       
-      // Navigate to login screen
+      // Check if context is still mounted before navigation
       if (context.mounted) {
+        // Navigate directly to login screen
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const LoginScreen()),

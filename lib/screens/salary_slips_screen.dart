@@ -38,19 +38,39 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final salaryProvider = Provider.of<SalaryProvider>(context, listen: false);
+      final salaryProvider = Provider.of<SalaryProvider>(
+        context,
+        listen: false,
+      );
       final userProvider = Provider.of<UserProvider>(context, listen: false);
 
       await salaryProvider.loadSalaries();
       await userProvider.loadWorkers();
 
+      // Filter for paid salaries that match the selected month
       _paidSalaries = salaryProvider.salaries
-          .where((salary) =>
-              salary.paid &&
-              salary.month == _selectedMonth)
+          .where((salary) => salary.paid && salary.month.startsWith(_selectedMonth))
           .toList();
+
+      print('Found ${_paidSalaries.length} paid salaries for month $_selectedMonth');
+      
+      // Also print details of each salary for debugging
+      for (var salary in _paidSalaries) {
+        print('Salary ID: ${salary.id}, Worker ID: ${salary.workerId}, Month: ${salary.month}, Paid: ${salary.paid}');
+      }
     } catch (e) {
       print('Error loading paid salaries: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error loading paid salaries: $e',
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
 
     setState(() => _isLoading = false);
@@ -118,9 +138,10 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
                       Text(
                         'Month: $_selectedMonth',
                         style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                       const Icon(Icons.arrow_drop_down, color: Colors.white),
                     ],
@@ -134,13 +155,13 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _paidSalaries.isEmpty
-                        ? _buildEmptyState()
-                        : ListView.builder(
-                            itemCount: _paidSalaries.length,
-                            itemBuilder: (context, index) {
-                              return _buildSalaryCard(_paidSalaries[index]);
-                            },
-                          ),
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        itemCount: _paidSalaries.length,
+                        itemBuilder: (context, index) {
+                          return _buildSalaryCard(_paidSalaries[index]);
+                        },
+                      ),
               ),
             ],
           ),
@@ -154,8 +175,7 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.receipt_long_outlined,
-              size: 60, color: Colors.grey[400]),
+          Icon(Icons.receipt_long_outlined, size: 60, color: Colors.grey[400]),
           const SizedBox(height: 20),
           Text(
             'No paid salaries found for this month',
@@ -198,22 +218,29 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
                   child: Text(
                     worker.name,
                     style: GoogleFonts.poppins(
-                        fontSize: 18, fontWeight: FontWeight.bold),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4CAF50),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text('Paid',
-                      style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white)),
+                  child: Text(
+                    'Paid',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -221,8 +248,7 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
             const SizedBox(height: 5),
             Text(
               'Worker ID: ${salary.workerId}',
-              style:
-                  GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+              style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
             ),
 
             const SizedBox(height: 10),
@@ -232,8 +258,9 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
                 Expanded(child: _buildInfoRow('Month', salary.month)),
                 Expanded(
                   child: _buildInfoRow(
-                      'Net Salary',
-                      '₹${salary.netSalary?.toStringAsFixed(2) ?? salary.totalSalary.toStringAsFixed(2)}'),
+                    'Net Salary',
+                    '₹${salary.netSalary?.toStringAsFixed(2) ?? salary.totalSalary.toStringAsFixed(2)}',
+                  ),
                 ),
               ],
             ),
@@ -252,8 +279,9 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
                   child: _buildInfoRow(
                     'Paid Date',
                     salary.paidDate != null
-                        ? DateFormat('dd MMM yyyy')
-                            .format(DateTime.parse(salary.paidDate!))
+                        ? DateFormat(
+                            'dd MMM yyyy',
+                          ).format(DateTime.parse(salary.paidDate!))
                         : 'N/A',
                   ),
                 ),
@@ -269,9 +297,10 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF1E88E5),
                 ),
-                child: Text('View Salary Slip',
-                    style:
-                        GoogleFonts.poppins(color: Colors.white)),
+                child: Text(
+                  'View Salary Slip',
+                  style: GoogleFonts.poppins(color: Colors.white),
+                ),
               ),
             ),
           ],
@@ -284,12 +313,14 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style:
-                GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600])),
-        Text(value,
-            style: GoogleFonts.poppins(
-                fontSize: 14, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
       ],
     );
   }
@@ -301,7 +332,15 @@ class _SalarySlipsScreenState extends State<SalarySlipsScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => SalarySlipDetail(salary: salary, worker: worker),
+      builder: (context) => DraggableScrollableSheet(
+        expand: true, // Make sure it expands
+        initialChildSize: 0.8,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) {
+          return SalarySlipDetail(salary: salary, worker: worker);
+        },
+      ),
     );
   }
 }
@@ -325,7 +364,6 @@ class SalarySlipDetail extends StatefulWidget {
 
 class _SalarySlipDetailState extends State<SalarySlipDetail> {
   List<dynamic> _advances = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
@@ -335,8 +373,10 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
 
   Future<void> _loadAdvances() async {
     try {
-      final advanceProvider =
-          Provider.of<AdvanceProvider>(context, listen: false);
+      final advanceProvider = Provider.of<AdvanceProvider>(
+        context,
+        listen: false,
+      );
       _advances = await advanceProvider.getAdvancesByWorkerIdAndMonth(
         widget.worker.id!,
         widget.salary.month,
@@ -345,12 +385,15 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
       print('Error loading advances: $e');
     }
 
-    setState(() => _isLoading = false);
+    setState(() {});
   }
 
   Future<pw.Document> _generateSalarySlipPdf() async {
     return await PdfUtils.generateSalarySlipPdf(
-        widget.salary, widget.worker, _advances);
+      widget.salary,
+      widget.worker,
+      _advances,
+    );
   }
 
   Future<void> _downloadSalarySlip() async {
@@ -358,15 +401,15 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
       final pdf = await _generateSalarySlipPdf();
       final pdfBytes = await pdf.save();
 
-      await Printing.layoutPdf(
-        onLayout: (format) async => pdfBytes,
-      );
+      await Printing.layoutPdf(onLayout: (format) async => pdfBytes);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Salary slip downloaded!',
-                style: GoogleFonts.poppins()),
+            content: Text(
+              'Salary slip downloaded!',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -375,8 +418,7 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text('Download failed: $e', style: GoogleFonts.poppins()),
+            content: Text('Download failed: $e', style: GoogleFonts.poppins()),
             backgroundColor: Colors.red,
           ),
         );
@@ -386,8 +428,10 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
 
   Future<void> _sendSlipToWorker() async {
     try {
-      final notificationProvider =
-          Provider.of<NotificationProvider>(context, listen: false);
+      final notificationProvider = Provider.of<NotificationProvider>(
+        context,
+        listen: false,
+      );
 
       final notification = NotificationModel(
         title: 'Salary Paid',
@@ -405,8 +449,7 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text('Sent to worker!', style: GoogleFonts.poppins()),
+            content: Text('Sent to worker!', style: GoogleFonts.poppins()),
             backgroundColor: Colors.green,
           ),
         );
@@ -415,8 +458,7 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text('Failed: $e', style: GoogleFonts.poppins()),
+            content: Text('Failed: $e', style: GoogleFonts.poppins()),
             backgroundColor: Colors.red,
           ),
         );
@@ -427,7 +469,9 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
   @override
   Widget build(BuildContext context) {
     final totalAdvance = _advances.fold<double>(
-        0.0, (sum, adv) => sum + (adv['amount'] as double? ?? 0.0));
+      0.0,
+      (sum, adv) => sum + (adv['amount'] as double? ?? 0.0),
+    );
 
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
@@ -451,7 +495,9 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
                   Text(
                     'Salary Slip',
                     style: GoogleFonts.poppins(
-                        fontSize: 20, fontWeight: FontWeight.bold),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -488,19 +534,25 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
                     Text(
                       widget.worker.name,
                       style: GoogleFonts.poppins(
-                          fontSize: 18, fontWeight: FontWeight.bold),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       'Worker ID: ${widget.worker.id}',
                       style: GoogleFonts.poppins(
-                          color: Colors.grey[600], fontSize: 14),
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       'Phone: ${widget.worker.phone}',
                       style: GoogleFonts.poppins(
-                          color: Colors.grey[600], fontSize: 14),
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
@@ -512,14 +564,18 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
                 children: [
                   Expanded(
                     child: _buildInfoCard(
-                        'Month', widget.salary.month, Icons.calendar_month),
+                      'Month',
+                      widget.salary.month,
+                      Icons.calendar_month,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _buildInfoCard(
-                        'Present Days',
-                        '${widget.salary.presentDays ?? 0}',
-                        Icons.check_circle),
+                      'Present Days',
+                      '${widget.salary.presentDays ?? 0}',
+                      Icons.check_circle,
+                    ),
                   ),
                 ],
               ),
@@ -543,37 +599,39 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
                         Text(
                           'Advances',
                           style: GoogleFonts.poppins(
-                              fontSize: 16, fontWeight: FontWeight.bold),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 10),
-                        ..._advances
-                            .map((advance) => Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                        color: Colors.grey.shade300),
-                                    borderRadius: BorderRadius.circular(5),
+                        ..._advances.map(
+                          (advance) => Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  advance['purpose'] ?? 'Advance',
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        advance['purpose'] ?? 'Advance',
-                                        style: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.w600),
-                                      ),
-                                      Text(
-                                        '₹${(advance['amount'] as double?)?.toStringAsFixed(2) ?? "0.00"}',
-                                        style: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.red),
-                                      ),
-                                    ],
+                                ),
+                                Text(
+                                  '₹${(advance['amount'] as double?)?.toStringAsFixed(2) ?? "0.00"}',
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red,
                                   ),
-                                ))
-                            .toList(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                         const Divider(),
                       ],
 
@@ -602,11 +660,14 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF1E88E5),
                               ),
-                              icon: const Icon(Icons.download,
-                                  color: Colors.white),
-                              label: Text('Download PDF',
-                                  style: GoogleFonts.poppins(
-                                      color: Colors.white)),
+                              icon: const Icon(
+                                Icons.download,
+                                color: Colors.white,
+                              ),
+                              label: Text(
+                                'Download PDF',
+                                style: GoogleFonts.poppins(color: Colors.white),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -616,11 +677,11 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green,
                               ),
-                              icon: const Icon(Icons.send,
-                                  color: Colors.white),
-                              label: Text('Send Slip',
-                                  style: GoogleFonts.poppins(
-                                      color: Colors.white)),
+                              icon: const Icon(Icons.send, color: Colors.white),
+                              label: Text(
+                                'Send Slip',
+                                style: GoogleFonts.poppins(color: Colors.white),
+                              ),
                             ),
                           ),
                         ],
@@ -636,8 +697,12 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
     );
   }
 
-  Widget _buildInfoCard(String label, String value, IconData icon,
-      {Color? color}) {
+  Widget _buildInfoCard(
+    String label,
+    String value,
+    IconData icon, {
+    Color? color,
+  }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -652,12 +717,20 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: GoogleFonts.poppins(
-                      fontSize: 12, color: Colors.grey[700])),
-              Text(value,
-                  style: GoogleFonts.poppins(
-                      fontSize: 14, fontWeight: FontWeight.w600)),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey[700],
+                ),
+              ),
+              Text(
+                value,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ],
@@ -665,15 +738,22 @@ class _SalarySlipDetailState extends State<SalarySlipDetail> {
     );
   }
 
-  Widget _buildBreakdownItem(String label, String value, IconData icon,
-      {bool isBold = false, Color? valueColor}) {
+  Widget _buildBreakdownItem(
+    String label,
+    String value,
+    IconData icon, {
+    bool isBold = false,
+    Color? valueColor,
+  }) {
     return Row(
       children: [
         Icon(icon, size: 20, color: const Color(0xFF1E88E5)),
         const SizedBox(width: 15),
         Expanded(
-          child: Text(label,
-              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[800])),
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[800]),
+          ),
         ),
         Text(
           value,
