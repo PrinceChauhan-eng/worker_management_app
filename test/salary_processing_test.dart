@@ -16,6 +16,7 @@ void main() {
         grossSalary: 12500.0,
         totalAdvance: 2000.0,
         netSalary: 10500.0,
+        totalSalary: 10500.0,
         paid: true,
         paidDate: '2023-01-31',
       );
@@ -30,6 +31,7 @@ void main() {
       expect(salary.grossSalary, 12500.0);
       expect(salary.totalAdvance, 2000.0);
       expect(salary.netSalary, 10500.0);
+      expect(salary.totalSalary, 10500.0);
       expect(salary.paid, true);
       expect(salary.paidDate, '2023-01-31');
     });
@@ -39,12 +41,14 @@ void main() {
         workerId: 102,
         month: 'February',
         totalDays: 28,
+        totalSalary: 0.0,
         paid: false,
       );
 
       expect(salary.workerId, 102);
       expect(salary.month, 'February');
       expect(salary.totalDays, 28);
+      expect(salary.totalSalary, 0.0);
       expect(salary.paid, false);
     });
 
@@ -60,6 +64,7 @@ void main() {
         grossSalary: 14000.0,
         totalAdvance: 1500.0,
         netSalary: 12500.0,
+        totalSalary: 12500.0,
         paid: true,
         paidDate: '2023-03-31',
       );
@@ -77,6 +82,7 @@ void main() {
       expect(salaryFromMap.grossSalary, salary.grossSalary);
       expect(salaryFromMap.totalAdvance, salary.totalAdvance);
       expect(salaryFromMap.netSalary, salary.netSalary);
+      expect(salaryFromMap.totalSalary, salary.totalSalary);
       expect(salaryFromMap.paid, salary.paid);
       expect(salaryFromMap.paidDate, salary.paidDate);
     });

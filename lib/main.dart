@@ -11,7 +11,10 @@ import 'providers/login_status_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/hybrid_database_provider.dart';
 import 'services/notification_service.dart';
+import 'services/database_updater.dart';
+import 'services/location_table_updater.dart'; // Add this import
 import 'screens/splash_screen.dart';
+import 'utils/logger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +44,26 @@ void main() async {
   
   // Initialize session manager
   await SessionManager().init();
+  
+  // Run database migrations
+  try {
+    final databaseUpdater = DatabaseUpdater();
+    await databaseUpdater.runMigrations();
+    Logger.info('Database migrations completed successfully');
+  } catch (e) {
+    Logger.error('Failed to run database migrations: $e', e);
+    // Don't crash the app if migrations fail, but log the error
+  }
+  
+  // Run location table synchronization
+  try {
+    final locationTableUpdater = LocationTableUpdater();
+    await locationTableUpdater.syncLocationTables();
+    Logger.info('Location table synchronization completed successfully');
+  } catch (e) {
+    Logger.error('Failed to sync location tables: $e', e);
+    // Don't crash the app if location table sync fails, but log the error
+  }
   
   runApp(
     MultiProvider(

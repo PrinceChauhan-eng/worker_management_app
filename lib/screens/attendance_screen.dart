@@ -108,7 +108,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         // Get existing attendance ID if available
         int? attendanceId = _attendanceIds[worker.id!];
 
-        // Create or update attendance object
+        // Create attendance object
         final attendance = Attendance(
           id: attendanceId, // Will be null for new records
           workerId: worker.id!,
@@ -119,12 +119,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
 
         bool success;
-        if (attendanceId != null) {
-          // Update existing attendance record
-          success = await attendanceProvider.updateAttendance(attendance);
+        if (isPresent) {
+          // For present workers, use upsert to ensure they're marked as present
+          success = await attendanceProvider.upsertAttendance(attendance);
         } else {
-          // Insert new record for both present and absent workers
-          success = await attendanceProvider.addAttendance(attendance);
+          // For absent workers, we still want to create a record with present = false
+          success = await attendanceProvider.upsertAttendance(attendance);
         }
         
         if (!success) {
@@ -183,6 +183,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
+    final attendanceProvider = Provider.of<AttendanceProvider>(context);
     final workers = userProvider.workers
         .where((user) => user.role == 'worker')
         .toList();
@@ -199,21 +200,42 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Mark Attendance',
-              style: GoogleFonts.poppins(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF1E88E5), // Royal Blue
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Select date and mark attendance for workers',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mark Attendance',
+                      style: GoogleFonts.poppins(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E88E5), // Royal Blue
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Select date and mark attendance for workers',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                // Add a refresh button to get today's summary
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () async {
+                    final summary = await attendanceProvider.getTodaySummary();
+                    Fluttertoast.showToast(
+                      msg: 'Total: ${summary['total']}, Present: ${summary['present']}, Absent: ${summary['absent']}',
+                      toastLength: Toast.LENGTH_LONG,
+                    );
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             // Date Selector

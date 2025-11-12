@@ -424,8 +424,12 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
         approvedDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
       );
 
+      print('Attempting to approve advance with data: ${updatedAdvance.toMap()}');
+      
       final advanceProvider = Provider.of<AdvanceProvider>(context, listen: false);
       bool success = await advanceProvider.updateAdvance(updatedAdvance);
+      
+      print('Advance approval result: $success');
 
       if (success) {
         // Send notification to worker
@@ -455,6 +459,7 @@ class _ManageAdvancesScreenState extends State<ManageAdvancesScreen> with Single
         // Refresh the data
         await _loadData();
       } else {
+        print('ERROR: Failed to approve advance. Check logs for details.');
         Fluttertoast.showToast(
           msg: 'Failed to approve advance',
           backgroundColor: Colors.red,

@@ -124,34 +124,57 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         // ✅ Show current screen
         body: _screens[_currentIndex],
 
-        // ✅ Navigation bar
-        bottomNavigationBar: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: _currentIndex,
-          selectedItemColor: const Color(0xFF1E88E5),
-          unselectedItemColor: Colors.grey,
-          onTap: (index) {
-            setState(() => _currentIndex = index);
-          },
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard),
-              label: 'Dashboard',
+        // ✅ Enhanced Navigation bar with better styling
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withValues(alpha: 0.3),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: BottomNavigationBar(
+            type: BottomNavigationBarType.fixed,
+            currentIndex: _currentIndex,
+            selectedItemColor: const Color(0xFF1E88E5),
+            unselectedItemColor: Colors.grey,
+            selectedLabelStyle: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
             ),
-            BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Workers'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.check_circle),
-              label: 'Attendance',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.account_balance_wallet),
-              label: 'Salary',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart),
-              label: 'Reports',
-            ),
-          ],
+            unselectedLabelStyle: GoogleFonts.poppins(),
+            onTap: (index) {
+              setState(() => _currentIndex = index);
+            },
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard, size: 24),
+                activeIcon: Icon(Icons.dashboard, size: 28),
+                label: 'Dashboard',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.people, size: 24),
+                activeIcon: Icon(Icons.people, size: 28),
+                label: 'Workers',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.check_circle, size: 24),
+                activeIcon: Icon(Icons.check_circle, size: 28),
+                label: 'Attendance',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.account_balance_wallet, size: 24),
+                activeIcon: Icon(Icons.account_balance_wallet, size: 28),
+                label: 'Salary',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.bar_chart, size: 24),
+                activeIcon: Icon(Icons.bar_chart, size: 28),
+                label: 'Reports',
+              ),
+            ],
+          ),
         ),
       ),
     );

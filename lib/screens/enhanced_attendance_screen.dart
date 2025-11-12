@@ -117,6 +117,7 @@ class _EnhancedAttendanceScreenState extends State<EnhancedAttendanceScreen>
       _isLoading = true;
     });
 
+    print('Saving attendance for date: $_selectedDate');
     final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
     final userProvider = Provider.of<UserProvider>(context, listen: false);
 
@@ -128,6 +129,8 @@ class _EnhancedAttendanceScreenState extends State<EnhancedAttendanceScreen>
         bool isPresent = _attendanceStatus[worker.id!] ?? false;
         String inTime = _inTime[worker.id!] ?? '09:00';
         String outTime = _outTime[worker.id!] ?? '17:00';
+        
+        print('Worker ${worker.name} (ID: ${worker.id}): isPresent=$isPresent, inTime=$inTime, outTime=$outTime');
         
         // Get existing attendance ID if available
         int? attendanceId = _attendanceIds[worker.id!];
@@ -145,10 +148,10 @@ class _EnhancedAttendanceScreenState extends State<EnhancedAttendanceScreen>
         bool success;
         if (attendanceId != null) {
           // Update existing attendance record
-          success = await attendanceProvider.updateAttendance(attendance);
+          success = await attendanceProvider.upsertAttendance(attendance);
         } else {
           // Insert new record for both present and absent workers
-          success = await attendanceProvider.addAttendance(attendance);
+          success = await attendanceProvider.upsertAttendance(attendance);
         }
         
         if (!success) {
@@ -577,8 +580,10 @@ class _EnhancedAttendanceScreenState extends State<EnhancedAttendanceScreen>
                                         Switch(
                                           value: isPresent,
                                           onChanged: (value) {
+                                            print('Switch toggled for worker ${worker.id}: $value');
                                             setState(() {
                                               _attendanceStatus[worker.id!] = value;
+                                              print('Attendance status updated for worker ${worker.id}: ${_attendanceStatus[worker.id!]}');
                                             });
                                           },
                                           activeThumbColor: const Color(0xFF4CAF50),

@@ -5,15 +5,15 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../utils/error_reporter.dart';
 import '../models/user.dart';
 import '../providers/user_provider.dart';
-import '../providers/notification_provider.dart';
 import '../services/session_manager.dart';
 import '../services/users_service.dart';
-import '../utils/validators.dart';
 import '../utils/password_utils.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
 import 'admin_dashboard_screen.dart';
 import 'worker_dashboard_screen.dart';
+import 'forgot_password_screen.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -24,14 +24,13 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _isObscure = true;
   bool _isLoading = false;
   String _selectedRole = 'admin';
   bool _rememberMe = false;
-  String _loginMethod = 'phone';
   String? _lastLoginTime;
 
   @override
@@ -41,63 +40,19 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadLastLoginTime();
   }
 
-  String _getLabel() {
-    switch (_loginMethod) {
-      case 'email':
-        return 'Email';
-      case 'id':
-        return 'User ID';
-      default:
-        return 'Phone Number';
-    }
-  }
-
-  String _getHint() {
-    switch (_loginMethod) {
-      case 'email':
-        return 'Enter your email';
-      case 'id':
-        return 'Enter your user ID';
-      default:
-        return 'Enter your phone number';
-    }
-  }
-
-  IconData _getIcon() {
-    switch (_loginMethod) {
-      case 'email':
-        return Icons.email;
-      case 'id':
-        return Icons.badge;
-      default:
-        return Icons.phone;
-    }
-  }
-
-  TextInputType _getKeyboardType() {
-    switch (_loginMethod) {
-      case 'email':
-        return TextInputType.emailAddress;
-      case 'id':
-        return TextInputType.number;
-      default:
-        return TextInputType.phone;
-    }
-  }
-
   Future<void> _loadRememberMe() async {
     try {
       final sessionManager = SessionManager();
       final remembered = await sessionManager.getRememberMe();
       if (remembered != null) {
         setState(() {
-          _phoneController.text = remembered['phone'] ?? '';
+          _identifierController.text = remembered['phone'] ?? '';
           _rememberMe = true;
         });
       } else {
         // Don't pre-fill any data when there's no remembered data
         setState(() {
-          _phoneController.text = '';
+          _identifierController.text = '';
         });
       }
     } catch (e) {
@@ -119,12 +74,47 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-
   @override
   void dispose() {
-    _phoneController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  // Helper methods for validation
+  bool _isValidEmail(String email) {
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    return emailRegex.hasMatch(email);
+  }
+
+  bool _isValidPhone(String phone) {
+    // Remove any spaces, dashes, or brackets
+    String cleanPhone = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    
+    // Check if it contains only digits
+    if (!RegExp(r'^[0-9]+$').hasMatch(cleanPhone)) {
+      return false;
+    }
+
+    // Check for valid length (10 digits for most countries, including India)
+    if (cleanPhone.length < 10) {
+      return false;
+    }
+
+    if (cleanPhone.length > 15) {
+      return false;
+    }
+
+    // For India: Check if it starts with 6-9 (valid mobile number prefix)
+    if (cleanPhone.length == 10) {
+      if (!RegExp(r'^[6-9]').hasMatch(cleanPhone)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   Future<void> _login() async {
@@ -136,14 +126,37 @@ class _LoginScreenState extends State<LoginScreen> {
         final userProvider = Provider.of<UserProvider>(context, listen: false);
 
         User? user;
+        final identifier = _identifierController.text.trim();
 
-        print('Attempting login with method: $_loginMethod, role: $_selectedRole');
+        print('Attempting login with identifier: $identifier, role: $_selectedRole');
         
-        // Authenticate user based on selected role and method
-        if (_loginMethod == 'phone') {
-          print('Authenticating with phone: ${_phoneController.text.trim()}');
-          // First get user by phone
-          final userData = await usersService.getUserByPhone(_phoneController.text.trim());
+        // Determine login method based on input
+        if (_isValidEmail(identifier)) {
+          // Email login
+          print('Authenticating with email: $identifier');
+          // Use the new efficient method to get user by email
+          final userData = await usersService.getUserByEmail(identifier);
+          if (userData != null && userData['role'] == _selectedRole) {
+            final foundUser = User.fromMap(userData);
+            // Verify password
+            bool passwordMatches;
+            if (PasswordUtils.isHashed(foundUser.password)) {
+              passwordMatches = PasswordUtils.verifyPassword(
+                _passwordController.text,
+                foundUser.password,
+              );
+            } else {
+              passwordMatches = _passwordController.text == foundUser.password;
+            }
+            
+            if (passwordMatches) {
+              user = foundUser;
+            }
+          }
+        } else if (_isValidPhone(identifier)) {
+          // Phone login
+          print('Authenticating with phone: $identifier');
+          final userData = await usersService.getUserByPhone(identifier);
           if (userData != null) {
             final foundUser = User.fromMap(userData);
             // Check if password matches
@@ -161,39 +174,11 @@ class _LoginScreenState extends State<LoginScreen> {
               user = foundUser;
             }
           }
-        } else if (_loginMethod == 'email') {
-          print('Authenticating with email: ${_phoneController.text.trim()}');
-          // For email login, we need to search by email first, then authenticate
-          // This would require a specific method in UsersService to search by email
-          // For now, we'll implement a basic search
-          
-          // Get all users and filter by email and role
-          final usersData = await usersService.getUsers();
-          for (var userData in usersData) {
-            if (userData['email'] == _phoneController.text.trim() && userData['role'] == _selectedRole) {
-              final foundUser = User.fromMap(userData);
-              // Verify password
-              bool passwordMatches;
-              if (PasswordUtils.isHashed(foundUser.password)) {
-                passwordMatches = PasswordUtils.verifyPassword(
-                  _passwordController.text,
-                  foundUser.password,
-                );
-              } else {
-                passwordMatches = _passwordController.text == foundUser.password;
-              }
-              
-              if (passwordMatches) {
-                user = foundUser;
-                break;
-              }
-            }
-          }
-        } else if (_loginMethod == 'id') {
-          print('Authenticating with ID: ${_phoneController.text.trim()}');
-          // For ID login, we need to search by ID first, then authenticate
-          final userId = int.tryParse(_phoneController.text.trim()) ?? 0;
-          if (userId > 0) {
+        } else {
+          // Try ID login (numeric)
+          final userId = int.tryParse(identifier);
+          if (userId != null && userId > 0) {
+            print('Authenticating with ID: $userId');
             final userData = await usersService.getUser(userId);
             if (userData != null && userData['role'] == _selectedRole) {
               final foundUser = User.fromMap(userData);
@@ -216,343 +201,350 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         if (user != null) {
-          print('Login successful for user: ${user.name} (ID: ${user.id})');
-          // Set current user in provider
-          userProvider.setCurrentUser(user);
-
-          // Add session
-          final sessionManager = SessionManager();
-          await sessionManager.addSession(user.id!, user.role);
+          // Login successful
+          print('Login successful for user: ${user.name}');
           
-          // Set current user ID for this tab
-          await sessionManager.setCurrentUserId(user.id!);
-
+          // Save last login time
+          await SessionManager().setRememberMe(identifier);
+          
+          // Save remember me if checked
           if (_rememberMe) {
-            await sessionManager.setRememberMe(_phoneController.text.trim());
+            await SessionManager().setRememberMe(user.phone ?? identifier);
           } else {
-            await sessionManager.clearRememberMe();
+            await SessionManager().clearRememberMe();
           }
 
-          final notificationProvider = Provider.of<NotificationProvider>(
-            context,
-            listen: false,
+          // Add session
+          await SessionManager().addSession(user.id!, user.role);
+          
+          // Set current user in provider
+          userProvider.setCurrentUser(user);
+          
+          // Show success message
+          Fluttertoast.showToast(
+            msg: 'Login successful! Welcome back, ${user.name}',
+            backgroundColor: Colors.green,
           );
-          await notificationProvider.loadNotifications(user.id!, user.role);
 
           // Navigate to appropriate dashboard
           if (user.role == 'admin') {
-            print('Navigating to Admin Dashboard');
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+              MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
             );
           } else {
-            print('Navigating to Worker Dashboard');
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const WorkerDashboardScreen()),
+              MaterialPageRoute(builder: (context) => const WorkerDashboardScreen()),
             );
           }
         } else {
-          print('Login failed - Invalid credentials or role mismatch');
-          Fluttertoast.showToast(
-            msg: 'Invalid credentials or role mismatch',
-            backgroundColor: Colors.red,
-          );
-          // Reset loading state on login failure
-          setState(() => _isLoading = false);
+          // Login failed
+          print('Login failed for identifier: $identifier');
+          
+          // Check if there are any users in the database
+          final allUsers = await usersService.getUsers();
+          if (allUsers.isEmpty) {
+            // No users in database
+            Fluttertoast.showToast(
+              msg: 'No users found in database. Contact system administrator.',
+              backgroundColor: Colors.orange,
+            );
+          } else {
+            // Users exist but credentials don't match
+            Fluttertoast.showToast(
+              msg: 'Invalid credentials. Please try again.',
+              backgroundColor: Colors.red,
+            );
+          }
         }
       } catch (e, stackTrace) {
-        print('=== LOGIN ERROR ===');
-        print('Error type: ${e.runtimeType}');
-        print('Error message: $e');
-        print('Stack trace: $stackTrace');
-        print('===================');
-        
-        setState(() => _isLoading = false);
-        
-        // Use the error reporter to handle the error
-        ErrorReporter.reportError(e, stackTrace, context: 'User Login');
-        
-        String errorMessage = ErrorReporter.getErrorMessage(e);
-        
+        print('Login error: $e');
+        ErrorReporter.reportError(e, stackTrace, context: 'Login Process');
         Fluttertoast.showToast(
-          msg: errorMessage,
+          msg: 'Login failed. Please try again.',
           backgroundColor: Colors.red,
         );
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Scaffold(
-        body: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
-            ),
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF1E88E5), // Royal Blue
+              Colors.white,
+            ],
           ),
-          child: SingleChildScrollView(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 40),
-
-                  Container(
-                    padding: const EdgeInsets.all(25),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(25),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 15,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 80),
+              Container(
+                padding: const EdgeInsets.all(30),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
                     ),
-                    child: const Icon(
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
                       Icons.work,
-                      size: 70,
+                      size: 60,
                       color: Color(0xFF1E88E5),
                     ),
-                  ),
-
-                  const SizedBox(height: 20),
-                  Text(
-                    'Worker Management',
-                    style: GoogleFonts.poppins(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                    const SizedBox(height: 20),
+                    Text(
+                      'Worker Management',
+                      style: GoogleFonts.poppins(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E88E5),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Login to your account',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      color: Colors.white70,
+                    const SizedBox(height: 5),
+                    Text(
+                      'Login to your account',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 30),
-
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 30),
+                    Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          // Unified identifier field (phone/email/user ID)
+                          CustomTextField(
+                            controller: _identifierController,
+                            labelText: 'Phone, Email, or User ID',
+                            hintText: 'Enter phone, email, or user ID',
+                            prefixIcon: Icons.person,
+                            keyboardType: TextInputType.text,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your phone, email, or user ID';
+                              }
+                              // Check if it's a valid phone, email, or numeric ID
+                              if (!_isValidPhone(value) && 
+                                  !_isValidEmail(value) && 
+                                  !RegExp(r'^\d+$').hasMatch(value)) {
+                                return 'Please enter a valid phone, email, or user ID';
+                              }
+                              return null;
+                            },
                           ),
-                          child: Row(
-                            children: [
-                              _roleButton('admin', 'Admin'),
-                              _roleButton('worker', 'Worker'),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        Form(
-                          key: _formKey,
-                          child: Column(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(5),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[100],
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  children: [
-                                    _methodButton('phone', 'Phone'),
-                                    _methodButton('email', 'Email'),
-                                    _methodButton('id', 'ID'),
-                                  ],
-                                ),
+                          const SizedBox(height: 20),
+                          // Password field
+                          CustomTextField(
+                            controller: _passwordController,
+                            labelText: 'Password',
+                            hintText: 'Enter your password',
+                            prefixIcon: Icons.lock,
+                            obscureText: _isObscure,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _isObscure ? Icons.visibility : Icons.visibility_off,
                               ),
-
-                              const SizedBox(height: 15),
-
-                              CustomTextField(
-                                controller: _phoneController,
-                                labelText: _getLabel(),
-                                hintText: _getHint(),
-                                prefixIcon: _getIcon(),
-                                keyboardType: _getKeyboardType(),
-                                validator: (v) {
-                                  if (v == null || v.isEmpty) {
-                                    return 'Please enter your ${_getLabel().toLowerCase()}';
+                              onPressed: () {
+                                setState(() {
+                                  _isObscure = !_isObscure;
+                                });
+                              },
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your password';
+                              }
+                              if (value.length < 6) {
+                                return 'Password must be at least 6 characters';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          // Role selection
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _selectedRole,
+                                isExpanded: true,
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'admin',
+                                    child: Text('Admin'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'worker',
+                                    child: Text('Worker'),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() {
+                                      _selectedRole = value;
+                                    });
                                   }
-                                  if (_loginMethod == 'phone') {
-                                    return Validators.validatePhoneNumber(v);
-                                  }
-                                  if (_loginMethod == 'email') {
-                                    return Validators.validateEmail(v);
-                                  }
-                                  return null;
                                 },
                               ),
-
-                              const SizedBox(height: 15),
-
-                              CustomTextField(
-                                controller: _passwordController,
-                                labelText: 'Password',
-                                hintText: 'Enter your password',
-                                prefixIcon: Icons.lock,
-                                obscureText: _isObscure,
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _isObscure
-                                        ? Icons.visibility_off
-                                        : Icons.visibility,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _isObscure = !_isObscure;
-                                    });
-                                  },
+                            ),
+                          ),
+                          const SizedBox(height: 15),
+                          // Remember me checkbox
+                          Row(
+                            children: [
+                              Checkbox(
+                                value: _rememberMe,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _rememberMe = value ?? false;
+                                  });
+                                },
+                              ),
+                              Text(
+                                'Remember me',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
                                 ),
-                                validator: Validators.validatePasswordForLogin,
-                              ),
-
-                              const SizedBox(height: 15),
-
-                              Row(
-                                children: [
-                                  Checkbox(
-                                    value: _rememberMe,
-                                    onChanged: (v) =>
-                                        setState(() => _rememberMe = v!),
-                                    activeColor: const Color(0xFF1E88E5),
-                                  ),
-                                  Text(
-                                    'Remember me',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  if (_lastLoginTime != null)
-                                    Text(
-                                      'Last login: $_lastLoginTime',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        color: Colors.grey[500],
-                                      ),
-                                    ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              CustomButton(
-                                text: 'Login',
-                                onPressed: _login,
-                                isLoading: _isLoading,
-                                color: const Color(0xFF1E88E5),
-                                textColor: Colors.white,
                               ),
                             ],
                           ),
+                          const SizedBox(height: 20),
+                          // Login button
+                          CustomButton(
+                            text: 'Login',
+                            onPressed: _login,
+                            isLoading: _isLoading,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Additional options
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ForgotPasswordScreen(),
                         ),
-                      ],
+                      );
+                    },
+                    child: Text(
+                      'Forgot Password?',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: const Color(0xFF1E88E5),
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-
-                  const SizedBox(height: 20),
-
-                  Text(
-                    '© 2025 Worker Management App',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.white70,
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SignUpScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'User Management',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: const Color(0xFF1E88E5),
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
                 ],
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _roleButton(String role, String label) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedRole = role),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          decoration: BoxDecoration(
-            color: _selectedRole == role
-                ? const Color(0xFF1E88E5)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: _selectedRole == role ? Colors.white : Colors.grey[700],
+              if (_lastLoginTime != null) ...[
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'Last login: $_lastLoginTime',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 30),
+              // User management information
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ℹ️ User Management Information',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[800],
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '• Admins: Added via database (SQL queries)\n'
+                      '• Workers: Added by admins through the application',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _methodButton(String method, String label) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _loginMethod = method),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: _loginMethod == method
-                ? const Color(0xFF1E88E5)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: _loginMethod == method ? Colors.white : Colors.grey[700],
-              ),
-            ),
+              const SizedBox(height: 20),
+            ],
           ),
         ),
       ),

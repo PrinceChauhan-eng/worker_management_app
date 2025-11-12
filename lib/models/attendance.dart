@@ -27,13 +27,42 @@ class Attendance {
   }
 
   factory Attendance.fromMap(Map<String, dynamic> map) {
+    // Handle the present field which might be stored as int (1/0) or bool
+    bool presentValue;
+    final presentData = map['present'];
+    
+    if (presentData is int) {
+      presentValue = presentData == 1;
+    } else if (presentData is bool) {
+      presentValue = presentData;
+    } else {
+      presentValue = false;
+    }
+    
     return Attendance(
       id: map['id'],
       workerId: map['worker_id'] ?? map['workerId'],
       date: map['date'],
-      inTime: map['in_time'] ?? map['inTime'],
-      outTime: map['out_time'] ?? map['outTime'],
-      present: (map['present'] ?? map['present']) == 1,
+      inTime: map['in_time'] ?? map['inTime'] ?? '',
+      outTime: map['out_time'] ?? map['outTime'] ?? '',
+      present: presentValue,
     );
   }
+  
+  // Add a named constructor for creating attendance objects
+  Attendance.create({
+    int? id,
+    required int workerId,
+    required String date,
+    required String inTime,
+    required String outTime,
+    required bool present,
+  }) : this(
+          id: id,
+          workerId: workerId,
+          date: date,
+          inTime: inTime,
+          outTime: outTime,
+          present: present,
+        );
 }

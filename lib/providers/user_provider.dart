@@ -1,12 +1,15 @@
 import '../models/user.dart';
 import '../services/users_service.dart';
 import '../services/auth_service.dart';
+import '../services/schema_refresher.dart'; // Add this import
 import 'base_provider.dart';
 import '../utils/logger.dart';
+import 'package:flutter/widgets.dart';
 
 class UserProvider extends BaseProvider {
   final UsersService _usersService = UsersService();
   final AuthService _authService = AuthService();
+  final SchemaRefresher _schemaRefresher = SchemaRefresher(); // Add this
 
   UserProvider() {
     Logger.debug('UserProvider created');
@@ -35,8 +38,28 @@ class UserProvider extends BaseProvider {
       notifyListeners();
     } catch (e, stackTrace) {
       Logger.error('Error loading workers: $e', e, stackTrace);
-      setState(ViewState.idle);
-      notifyListeners();
+      // Try to fix schema errors
+      await _schemaRefresher.tryFixSchemaError(e);
+      
+      // Retry after schema refresh
+      try {
+        await Future.delayed(const Duration(seconds: 2));
+        final usersData = await _usersService.getUsers();
+        _workers = usersData.map((data) => User.fromMap(data)).toList();
+        Logger.info('Workers loaded successfully. Count: ${_workers.length}');
+        
+        // Log each worker for debugging
+        for (var worker in _workers) {
+          Logger.debug('Worker loaded: ID=${worker.id}, Name=${worker.name}, Phone=${worker.phone}, Role=${worker.role}');
+        }
+        
+        setState(ViewState.idle);
+        notifyListeners();
+      } catch (retryError, retryStackTrace) {
+        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        setState(ViewState.idle);
+        notifyListeners();
+      }
     }
   }
 
@@ -51,8 +74,22 @@ class UserProvider extends BaseProvider {
       return true;
     } catch (e, stackTrace) {
       Logger.error('Error adding user: $e', e, stackTrace);
-      setState(ViewState.idle);
-      return false;
+      // Try to fix schema errors
+      await _schemaRefresher.tryFixExtendedSchemaError(e);
+      
+      // Retry after schema refresh
+      try {
+        await Future.delayed(const Duration(seconds: 2));
+        await _usersService.insertUser(user.toMap());
+        await loadWorkers();
+        setState(ViewState.idle);
+        Logger.info('User added successfully: ${user.name}');
+        return true;
+      } catch (retryError, retryStackTrace) {
+        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        setState(ViewState.idle);
+        return false;
+      }
     }
   }
 
@@ -77,9 +114,31 @@ class UserProvider extends BaseProvider {
       return true;
     } catch (e, stackTrace) {
       Logger.error('Error updating user: $e', e, stackTrace);
-      setState(ViewState.idle);
-      notifyListeners();
-      return false;
+      // Try to fix schema errors
+      await _schemaRefresher.tryFixExtendedSchemaError(e);
+      
+      // Retry after schema refresh
+      try {
+        await Future.delayed(const Duration(seconds: 2));
+        await _usersService.updateUser(user.id!, user.toMap());
+
+        // Update current user if this is the logged-in user
+        if (_currentUser != null && _currentUser!.id == user.id) {
+          _currentUser = user;
+          Logger.info('Current user updated in provider');
+        }
+
+        await loadWorkers();
+        setState(ViewState.idle);
+        notifyListeners();
+        Logger.info('User update completed successfully');
+        return true;
+      } catch (retryError, retryStackTrace) {
+        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        setState(ViewState.idle);
+        notifyListeners();
+        return false;
+      }
     }
   }
 
@@ -93,8 +152,21 @@ class UserProvider extends BaseProvider {
       return true;
     } catch (e, stackTrace) {
       Logger.error('Error deleting user: $e', e, stackTrace);
-      setState(ViewState.idle);
-      return false;
+      // Try to fix schema errors
+      await _schemaRefresher.tryFixSchemaError(e);
+      
+      // Retry after schema refresh
+      try {
+        await Future.delayed(const Duration(seconds: 2));
+        await _usersService.deleteUser(id);
+        await loadWorkers();
+        setState(ViewState.idle);
+        return true;
+      } catch (retryError, retryStackTrace) {
+        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        setState(ViewState.idle);
+        return false;
+      }
     }
   }
 
@@ -122,8 +194,35 @@ class UserProvider extends BaseProvider {
       return _currentUser;
     } catch (e, stackTrace) {
       Logger.error('Error authenticating user: $e', e, stackTrace);
-      setState(ViewState.idle);
-      return null;
+      // Try to fix schema errors
+      await _schemaRefresher.tryFixSchemaError(e);
+      
+      // Retry after schema refresh
+      try {
+        await Future.delayed(const Duration(seconds: 2));
+        // First, find the user by phone
+        final userData = await _usersService.getUserByPhone(phone);
+        if (userData == null) {
+          Logger.warning('Authentication failed: User not found with phone: $phone');
+          setState(ViewState.idle);
+          notifyListeners();
+          return null;
+        }
+        
+        // For demo purposes, we'll assume authentication is successful
+        // In a real app, you would integrate with Supabase Auth
+        _currentUser = User.fromMap(userData);
+        Logger.info('Authentication result: SUCCESS');
+        Logger.info('Authenticated user: ${_currentUser!.name}, role: ${_currentUser!.role}');
+        
+        setState(ViewState.idle);
+        notifyListeners();
+        return _currentUser;
+      } catch (retryError, retryStackTrace) {
+        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        setState(ViewState.idle);
+        return null;
+      }
     }
   }
 
@@ -131,7 +230,10 @@ class UserProvider extends BaseProvider {
     Logger.info('Setting current user: ${user.name} (ID: ${user.id})');
     Logger.debug('User details: Phone=${user.phone}, Role=${user.role}, Email=${user.email}, Verified=${user.emailVerified}');
     _currentUser = user;
-    notifyListeners();
+    // Use addPostFrameCallback to avoid calling notifyListeners during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
   }
 
   void clearCurrentUser() {
@@ -147,7 +249,18 @@ class UserProvider extends BaseProvider {
       return userData != null ? User.fromMap(userData) : null;
     } catch (e, stackTrace) {
       Logger.error('Error getting user by ID: $e', e, stackTrace);
-      rethrow;
+      // Try to fix schema errors
+      await _schemaRefresher.tryFixExtendedSchemaError(e);
+      
+      // Retry after schema refresh
+      try {
+        await Future.delayed(const Duration(seconds: 2));
+        final userData = await _usersService.getUser(id);
+        return userData != null ? User.fromMap(userData) : null;
+      } catch (retryError, retryStackTrace) {
+        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        rethrow;
+      }
     }
   }
 }

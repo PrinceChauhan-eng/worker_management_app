@@ -8,7 +8,6 @@ import '../models/notification.dart';
 import '../providers/user_provider.dart';
 import '../providers/advance_provider.dart';
 import '../providers/notification_provider.dart';
-import '../utils/logger.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';

@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../providers/user_provider.dart';
 import '../providers/login_status_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/attendance_provider.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/profile_menu_button.dart';
 import '../models/login_status.dart';
@@ -208,6 +209,14 @@ class _DashboardHomeState extends State<_DashboardHome> {
     try {
       print('Loading initial data for dashboard home...');
       await _checkTodayLoginStatus();
+      
+      // Mark absentees on app start
+      final attendanceProvider = Provider.of<AttendanceProvider>(
+        context,
+        listen: false,
+      );
+      await attendanceProvider.markAbsentees();
+      
       print('Initial data loaded successfully');
     } catch (e) {
       print('Error loading initial data: $e');
@@ -243,6 +252,10 @@ class _DashboardHomeState extends State<_DashboardHome> {
         listen: false,
       );
       final loginStatusProvider = Provider.of<LoginStatusProvider>(
+        context,
+        listen: false,
+      );
+      final attendanceProvider = Provider.of<AttendanceProvider>(
         context,
         listen: false,
       );
@@ -319,6 +332,10 @@ class _DashboardHomeState extends State<_DashboardHome> {
       context,
       listen: false,
     );
+    final attendanceProvider = Provider.of<AttendanceProvider>(
+      context,
+      listen: false,
+    );
 
     if (userProvider.currentUser != null) {
       // Update the login status to logged out
@@ -350,6 +367,12 @@ class _DashboardHomeState extends State<_DashboardHome> {
 
       await loginStatusProvider.updateLoginStatus(updatedStatus);
 
+      // Also update attendance record with logout time
+      await attendanceProvider.markLogout(
+        workerId: userProvider.currentUser!.id!,
+        outTime: currentTime,
+      );
+
       Fluttertoast.showToast(
         msg: 'You have been marked absent by admin. Auto-logout performed.',
         backgroundColor: Colors.orange,
@@ -368,6 +391,10 @@ class _DashboardHomeState extends State<_DashboardHome> {
       context,
       listen: false,
     );
+    final attendanceProvider = Provider.of<AttendanceProvider>(
+      context,
+      listen: false,
+    );
 
     if (userProvider.currentUser == null) {
       Fluttertoast.showToast(
@@ -383,6 +410,18 @@ class _DashboardHomeState extends State<_DashboardHome> {
     final result = await loginStatusProvider.workerLogin(
       userProvider.currentUser!,
     );
+
+    // If login was successful, also mark attendance
+    if (result['success'] == true) {
+      final loginStatus = result['loginStatus'] as LoginStatus;
+      await attendanceProvider.markLogin(
+        workerId: userProvider.currentUser!.id!,
+        inTime: loginStatus.loginTime ?? DateFormat('HH:mm:ss').format(DateTime.now()),
+        address: loginStatus.loginAddress,
+        latitude: loginStatus.loginLatitude,
+        longitude: loginStatus.loginLongitude,
+      );
+    }
 
     setState(() {
       _isLoading = false;
@@ -405,6 +444,10 @@ class _DashboardHomeState extends State<_DashboardHome> {
       context,
       listen: false,
     );
+    final attendanceProvider = Provider.of<AttendanceProvider>(
+      context,
+      listen: false,
+    );
 
     if (userProvider.currentUser == null) {
       Fluttertoast.showToast(
@@ -420,6 +463,21 @@ class _DashboardHomeState extends State<_DashboardHome> {
     final result = await loginStatusProvider.workerLogout(
       userProvider.currentUser!,
     );
+
+    // If logout was successful, also mark attendance
+    if (result['success'] == true) {
+      final loginStatus = loginStatusProvider.todayLoginStatus;
+      
+      if (loginStatus != null) {
+        await attendanceProvider.markLogout(
+          workerId: userProvider.currentUser!.id!,
+          outTime: loginStatus.logoutTime ?? DateFormat('HH:mm:ss').format(DateTime.now()),
+          address: loginStatus.logoutAddress,
+          latitude: loginStatus.logoutLatitude,
+          longitude: loginStatus.logoutLongitude,
+        );
+      }
+    }
 
     setState(() {
       _isLoading = false;
@@ -476,7 +534,9 @@ class _DashboardHomeState extends State<_DashboardHome> {
   @override
   Widget build(BuildContext context) {
     final loginStatusProvider = Provider.of<LoginStatusProvider>(context);
+    final userProvider = Provider.of<UserProvider>(context);
     final isLoggedIn = loginStatusProvider.isLoggedIn;
+    final user = userProvider.currentUser;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -486,28 +546,93 @@ class _DashboardHomeState extends State<_DashboardHome> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Dashboard',
-                style: GoogleFonts.poppins(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1E88E5),
+              // Enhanced Welcome Card with Profile Image
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withValues(alpha: 0.3),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Welcome to your worker dashboard',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  color: Colors.grey[600],
+                child: Row(
+                  children: [
+                    // Profile avatar
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          user?.name.isNotEmpty == true 
+                              ? user!.name[0].toUpperCase() 
+                              : 'W',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                    // Welcome text
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Welcome back,',
+                            style: GoogleFonts.poppins(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            user?.name ?? 'Worker',
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            'Today is ${DateFormat('EEEE, MMM d').format(DateTime.now())}',
+                            style: GoogleFonts.poppins(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 30),
 
-              // Login/Logout Status Banner
+              // Enhanced Login/Logout Status Banner
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(15),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: isLoggedIn
@@ -516,13 +641,13 @@ class _DashboardHomeState extends State<_DashboardHome> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
                       color: (isLoggedIn ? Colors.green : Colors.orange)
-                          .withOpacity(0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
+                          .withValues(alpha: 0.3),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
@@ -551,7 +676,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                                 'Since: ${loginStatusProvider.todayLoginStatus!.loginTime}',
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
-                                  color: Colors.white.withOpacity(0.9),
+                                  color: Colors.white.withValues(alpha: 0.9),
                                 ),
                               ),
                           ],
@@ -569,7 +694,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                       child: ElevatedButton.icon(
                         onPressed: _isLoading
                             ? null
-                            : (isLoggedIn ? _handleLogout : _handleLogin),
+                            : (isLoggedIn ? _handleLogoutWithConfirmation : _handleLogin),
                         icon: Icon(isLoggedIn ? Icons.logout : Icons.login),
                         label: Text(
                           isLoggedIn ? 'Logout' : 'Login',
@@ -584,7 +709,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                               : Colors.green,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                       ),
@@ -622,7 +747,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                       mainAxisSpacing: 15,
                       childAspectRatio: 1.2, // Width to height ratio
                       children: [
-                        _buildQuickActionCard(
+                        _buildEnhancedQuickActionCard(
                           context,
                           title: 'My Profile',
                           icon: Icons.person,
@@ -636,7 +761,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                             );
                           },
                         ),
-                        _buildQuickActionCard(
+                        _buildEnhancedQuickActionCard(
                           context,
                           title: 'My Attendance',
                           icon: Icons.check_circle,
@@ -652,7 +777,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                             });
                           },
                         ),
-                        _buildQuickActionCard(
+                        _buildEnhancedQuickActionCard(
                           context,
                           title: 'My Advance',
                           icon: Icons.history,
@@ -668,7 +793,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                             });
                           },
                         ),
-                        _buildQuickActionCard(
+                        _buildEnhancedQuickActionCard(
                           context,
                           title: 'Advance Request',
                           icon: Icons.payment,
@@ -690,6 +815,124 @@ class _DashboardHomeState extends State<_DashboardHome> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  // Enhanced quick action card with better design
+  Widget _buildEnhancedQuickActionCard(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 32,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Handle logout with confirmation dialog
+  Future<void> _handleLogoutWithConfirmation() async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Confirm Logout',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            'Do you want to logout and save today\'s location?',
+            style: GoogleFonts.poppins(),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.poppins(
+                  color: Colors.grey,
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Handle worker logout directly
+                _handleLogout();
+              },
+              child: Text(
+                'Logout',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
         );
       },
     );

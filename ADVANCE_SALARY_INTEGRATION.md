@@ -207,7 +207,7 @@ class Salary {
       netSalary: map['netSalary'],
       advanceBalance: map['advanceBalance'] ?? 0,
       totalSalary: map['totalSalary'],
-      paid: map['paid'] == 1,
+      paid: map['paid'] == true || map['paid'] == 1,
       paidDate: map['paidDate'],
     );
   }

@@ -5,12 +5,13 @@ import 'package:intl/intl.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/login_status_provider.dart';
+import '../../providers/attendance_provider.dart';
 import '../../models/user.dart';
 import '../../models/login_status.dart';
+import '../../models/attendance.dart';
 import '../../models/notification.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../services/notifications_service.dart';
-import '../../services/login_service.dart';
 import '../../utils/logger.dart';
 
 class WorkerAttendanceScreen extends StatefulWidget {
@@ -233,49 +234,93 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
     if (_selectedWorker == null) return;
 
     try {
+      print('Marking attendance for worker: ${_selectedWorker!.name} (ID: ${_selectedWorker!.id}) as $status');
       final loginStatusProvider = Provider.of<LoginStatusProvider>(
+        context,
+        listen: false,
+      );
+      final attendanceProvider = Provider.of<AttendanceProvider>(
         context,
         listen: false,
       );
       String dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       String timeStr = DateFormat('HH:mm:ss').format(DateTime.now());
 
-      // Check if there's already a record for this date
-      LoginStatus? existingStatus = await loginStatusProvider
+      // Check if there's already a record for this date in login status
+      LoginStatus? existingLoginStatus = await loginStatusProvider
           .getLoginStatusForDate(_selectedWorker!.id!, dateStr);
 
+      // Check if there's already a record for this date in attendance
+      await attendanceProvider.loadAttendances();
+      List<Attendance> existingAttendanceRecords = attendanceProvider.attendances
+          .where((att) => att.workerId == _selectedWorker!.id! && att.date == dateStr)
+          .toList();
+      
+      Attendance? existingAttendance = existingAttendanceRecords.isNotEmpty 
+          ? existingAttendanceRecords.first 
+          : null;
+
       LoginStatus loginStatus;
+      Attendance attendance;
 
       if (status == 'present') {
-        // Update existing record or create new one
+        print('Creating present record for worker');
+        // Update existing login status record or create new one
         loginStatus = LoginStatus(
-          id: existingStatus?.id, // Handle nullable existingStatus
+          id: existingLoginStatus?.id,
           workerId: _selectedWorker!.id!,
           date: dateStr,
-          loginTime: existingStatus?.loginTime ?? timeStr, // Handle nullable existingStatus
-          logoutTime: existingStatus?.logoutTime, // Handle nullable existingStatus
+          loginTime: existingLoginStatus?.loginTime ?? timeStr,
+          logoutTime: existingLoginStatus?.logoutTime,
           isLoggedIn: true,
         );
-      } else {
-        // For absent, we create a record with login time but mark as not logged in
-        // Update existing record to absent
-        loginStatus = LoginStatus(
-          id: existingStatus?.id, // Handle nullable existingStatus
+        
+        // Update existing attendance record or create new one
+        attendance = Attendance(
+          id: existingAttendance?.id,
           workerId: _selectedWorker!.id!,
           date: dateStr,
-          loginTime: existingStatus?.loginTime, // Handle nullable existingStatus
-          logoutTime: existingStatus?.logoutTime, // Handle nullable existingStatus
+          inTime: existingAttendance?.inTime.isNotEmpty == true 
+              ? existingAttendance!.inTime 
+              : timeStr,
+          outTime: existingAttendance?.outTime.isNotEmpty == true 
+              ? existingAttendance!.outTime 
+              : '',
+          present: true,
+        );
+      } else {
+        print('Creating absent record for worker');
+        // For absent, we create a record with login time but mark as not logged in
+        // Update existing login status record to absent
+        loginStatus = LoginStatus(
+          id: existingLoginStatus?.id,
+          workerId: _selectedWorker!.id!,
+          date: dateStr,
+          loginTime: existingLoginStatus?.loginTime,
+          logoutTime: existingLoginStatus?.logoutTime,
           isLoggedIn: false,
+        );
+        
+        // Update existing attendance record or create new one
+        attendance = Attendance(
+          id: existingAttendance?.id,
+          workerId: _selectedWorker!.id!,
+          date: dateStr,
+          inTime: '',
+          outTime: '',
+          present: false,
         );
       }
 
-      // Save to database
-      if (loginStatus.id != null) {
-        await loginStatusProvider.updateLoginStatus(loginStatus);
-      } else {
-        final loginService = LoginService();
-        await loginService.upsertStatus(loginStatus.toMap());
-      }
+      print('LoginStatus to save: isLoggedIn=${loginStatus.isLoggedIn}');
+      print('Attendance to save: present=${attendance.present}');
+
+      // Save to database using the correct method for login status
+      await loginStatusProvider.updateLoginStatus(loginStatus);
+      
+      // Save to database using the correct method for attendance
+      bool attendanceSuccess = await attendanceProvider.upsertAttendance(attendance);
+      print('Attendance save success: $attendanceSuccess');
 
       // Send notification to worker about attendance update
       await _sendAttendanceNotification(_selectedWorker!, status, dateStr);
@@ -290,8 +335,9 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
       // Refresh the UI
       setState(() {});
     } catch (e) {
+      Logger.error('Error marking attendance: $e', e);
       Fluttertoast.showToast(
-        msg: 'Error marking attendance: $e',
+        msg: 'Failed to save attendance. Please try again later.',
         backgroundColor: Colors.red,
       );
     }

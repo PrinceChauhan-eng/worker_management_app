@@ -6,6 +6,7 @@ import '../../models/login_status.dart';
 import '../../models/user.dart';
 import '../../providers/login_status_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../providers/attendance_provider.dart';
 import '../login_status_screen.dart';
 import '../manage_advances_screen.dart';
 import '../advance_only_screen.dart';
@@ -55,45 +56,50 @@ class DashboardHomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 15),
-              FutureBuilder<Map<String, int>>(
-                future: _getStatistics(context),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+              Consumer2<LoginStatusProvider, UserProvider>(
+                builder: (context, loginStatusProvider, userProvider, child) {
+                  // Use a post-frame callback to avoid setState during build
+                  return FutureBuilder<Map<String, int>>(
+                    future: _getStatistics(context, userProvider),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                  final stats =
-                      snapshot.data ?? {'total': 0, 'loggedIn': 0, 'absent': 0};
+                      final stats =
+                          snapshot.data ?? {'total': 0, 'loggedIn': 0, 'absent': 0};
 
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          title: 'Total Workers',
-                          value: stats['total'].toString(),
-                          icon: Icons.people,
-                          color: const Color(0xFF1E88E5),
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: _buildStatCard(
-                          title: 'Logged In',
-                          value: stats['loggedIn'].toString(),
-                          icon: Icons.check_circle,
-                          color: const Color(0xFF4CAF50),
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: _buildStatCard(
-                          title: 'Absent',
-                          value: stats['absent'].toString(),
-                          icon: Icons.cancel,
-                          color: const Color(0xFFF44336),
-                        ),
-                      ),
-                    ],
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              title: 'Total Workers',
+                              value: stats['total'].toString(),
+                              icon: Icons.people,
+                              color: const Color(0xFF1E88E5),
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          Expanded(
+                            child: _buildStatCard(
+                              title: 'Logged In',
+                              value: stats['loggedIn'].toString(),
+                              icon: Icons.check_circle,
+                              color: const Color(0xFF4CAF50),
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          Expanded(
+                            child: _buildStatCard(
+                              title: 'Absent',
+                              value: stats['absent'].toString(),
+                              icon: Icons.cancel,
+                              color: const Color(0xFFF44336),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 },
               ),
@@ -248,12 +254,33 @@ class DashboardHomeScreen extends StatelessWidget {
     );
   }
 
-  Future<Map<String, int>> _getStatistics(BuildContext context) async {
+  Future<Map<String, int>> _getStatistics(BuildContext context, UserProvider userProvider) async {
     final loginStatusProvider = Provider.of<LoginStatusProvider>(
       context,
       listen: false,
     );
-    return await loginStatusProvider.getLoginStatistics();
+    final attendanceProvider = Provider.of<AttendanceProvider>(
+      context,
+      listen: false,
+    );
+    
+    // Get attendance statistics from provider (more accurate)
+    final attendanceStats = await attendanceProvider.getTodaySummary();
+    
+    // Get total workers from user provider
+    final totalWorkers = userProvider.workers
+        .where((user) => user.role == 'worker')
+        .length;
+    
+    // Use attendance data for more accurate statistics
+    final presentCount = attendanceStats['present'] ?? 0;
+    final absentCount = totalWorkers - presentCount;
+    
+    return {
+      'total': totalWorkers,
+      'loggedIn': presentCount, // Use present count from attendance
+      'absent': absentCount > 0 ? absentCount.toInt() : 0,
+    };
   }
 
   Widget _buildStatCard({
@@ -448,73 +475,13 @@ class DashboardHomeScreen extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
-            trailing: ElevatedButton(
-              onPressed: () {
-                // Mark worker as logged out
-                _markWorkerAsLoggedOut(context, loginStatus);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF44336),
-                minimumSize: const Size(80, 30),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-              ),
-              child: Text(
-                'Logout',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.white,
-                ),
-              ),
+            trailing: const Icon(
+              Icons.check_circle,
+              color: Color(0xFF4CAF50),
             ),
           ),
         );
       },
     );
-  }
-
-  void _markWorkerAsLoggedOut(BuildContext context, LoginStatus loginStatus) async {
-    try {
-      final loginStatusProvider = Provider.of<LoginStatusProvider>(context, listen: false);
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      
-      // Get worker details
-      final worker = await userProvider.getUser(loginStatus.workerId);
-      if (worker == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Worker not found')),
-        );
-        return;
-      }
-
-      // Update login status to logged out
-      final updatedLoginStatus = LoginStatus(
-        id: loginStatus.id,
-        workerId: loginStatus.workerId,
-        date: loginStatus.date,
-        loginTime: loginStatus.loginTime,
-        logoutTime: DateFormat('HH:mm:ss').format(DateTime.now()),
-        isLoggedIn: false,
-      );
-
-      await loginStatusProvider.updateLoginStatus(updatedLoginStatus);
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${worker.name} has been logged out'),
-          backgroundColor: const Color(0xFF4CAF50),
-        ),
-      );
-
-      // Refresh the card
-      (context as Element).markNeedsBuild();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error logging out worker: $e'),
-          backgroundColor: const Color(0xFFF44336),
-        ),
-      );
-    }
   }
 }

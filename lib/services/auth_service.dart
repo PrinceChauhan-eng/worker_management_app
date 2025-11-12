@@ -1,29 +1,23 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_client.dart';
 
 class AuthService {
-  /// Email/Password sign up (creates auth user). Optionally also create a row in users table after sign up.
-  Future<AuthResponse> signUpWithEmail({required String email, required String password}) async {
-    final res = await supa.auth.signUp(email: email, password: password);
-    return res;
+  /// Custom login (phone OR email OR id) + password
+  Future<Map<String, dynamic>?> login({
+    required String input,
+    required String password,
+  }) async {
+    final user = await supa
+        .from('users')
+        .select()
+        .or('phone.eq.$input,email.eq.$input,id.eq.$input')
+        .eq('password', password)
+        .maybeSingle();
+
+    return user;
   }
 
-  /// Email/Password login
-  Future<AuthResponse> signInWithEmail({required String email, required String password}) async {
-    final res = await supa.auth.signInWithPassword(email: email, password: password);
-    return res;
-  }
-
-  /// Send OTP magic link to email (passwordless)
-  Future<void> sendEmailOtp({required String email, required String redirectTo}) async {
-    await supa.auth.signInWithOtp(email: email, emailRedirectTo: redirectTo);
-  }
-
-  /// Sign out
+  /// Logout (not needed if using custom auth, but safe)
   Future<void> signOut() async {
-    await supa.auth.signOut();
+    await supa.auth.signOut(); // optional, does nothing for custom auth
   }
-
-  /// Current user (auth)
-  User? get currentUser => supa.auth.currentUser;
 }
