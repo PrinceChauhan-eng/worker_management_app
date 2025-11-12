@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../lib/services/database_updater.dart';
-import '../lib/utils/logger.dart';
+import 'package:worker_managment_app/services/database_updater.dart';
 
 void main() {
   group('Database Verification Tests', () {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/location_table_updater.dart';
+import 'package:worker_managment_app/services/location_table_updater.dart';
 
 void main() {
   group('LocationTableUpdater Tests', () {

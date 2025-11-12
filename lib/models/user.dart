@@ -17,6 +17,7 @@ class User {
   final bool? emailVerified; // Email verification status
   final String? emailVerificationCode; // Temporary OTP code
   final String? designation; // Worker's designation/role
+  final String? createdBy; // Admin who created this user
 
   User({
     this.id,
@@ -37,11 +38,12 @@ class User {
     this.emailVerified = false,
     this.emailVerificationCode,
     this.designation, // Add designation parameter
+    this.createdBy, // Add createdBy parameter
   });
 
   // Profile completion percentage
   int get profileCompletionPercentage {
-    int totalFields = 11; // Updated total to include designation
+    int totalFields = 12; // Updated total to include designation and createdBy
     int completedFields = 3; // name, phone, role always present
     
     if (profilePhoto != null && profilePhoto!.isNotEmpty) completedFields++;
@@ -52,6 +54,7 @@ class User {
     if (workLocationAddress != null && workLocationAddress!.isNotEmpty) completedFields++;
     if (wage > 0) completedFields++;
     if (designation != null && designation!.isNotEmpty) completedFields++; // Add designation
+    if (createdBy != null && createdBy!.isNotEmpty) completedFields++; // Add createdBy
     
     return ((completedFields / totalFields) * 100).round();
   }
@@ -76,6 +79,7 @@ class User {
       'email_verified': emailVerified == true ? 1 : 0,
       'email_verification_code': emailVerificationCode,
       'designation': designation, // Add designation to map
+      'created_by': createdBy, // Add createdBy to map
     };
   }
 
@@ -99,6 +103,7 @@ class User {
       emailVerified: (map['email_verified'] ?? map['emailVerified']) == 1,
       emailVerificationCode: map['email_verification_code'] ?? map['emailVerificationCode'],
       designation: map['designation'], // Add designation from map
+      createdBy: map['created_by'] ?? map['createdBy'], // Add createdBy from map
     );
   }
 
@@ -121,6 +126,7 @@ class User {
     bool? emailVerified,
     String? emailVerificationCode,
     String? designation, // Add designation parameter
+    String? createdBy, // Add createdBy parameter
   }) {
     return User(
       id: id ?? this.id,
@@ -141,6 +147,7 @@ class User {
       emailVerified: emailVerified ?? this.emailVerified,
       emailVerificationCode: emailVerificationCode ?? this.emailVerificationCode,
       designation: designation ?? this.designation, // Add designation parameter
+      createdBy: createdBy ?? this.createdBy, // Add createdBy parameter
     );
   }
 }

@@ -161,9 +161,6 @@ class _AddWorkerScreenState extends State<AddWorkerScreen> {
     return Scaffold(
       appBar: CustomAppBar(
         title: _editingUser == null ? 'Add Worker' : 'Edit Worker',
-        onLeadingPressed: () {
-          Navigator.pop(context);
-        },
       ),
       body: SingleChildScrollView(
         child: Container(

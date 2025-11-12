@@ -26,6 +26,9 @@ class DatabaseUpdater {
       await _ensureNotificationsTableAndPolicies();
       Logger.info('Notifications table migration completed');
       
+      await _ensureAdminUserMappingTableAndPolicies();
+      Logger.info('Admin-user mapping table migration completed');
+      
       Logger.info('All database migrations completed successfully');
     } catch (e, stackTrace) {
       Logger.error('Error during database migrations: $e', e, stackTrace);
@@ -47,11 +50,86 @@ class DatabaseUpdater {
         add column if not exists id_proof text,
         add column if not exists email_verified boolean default false,
         add column if not exists email_verification_code text,
-        add column if not exists designation text;
+        add column if not exists designation text,
+        add column if not exists created_by uuid references auth.users(id); -- Add created_by column
+        
+        -- Create index for performance
+        create index if not exists idx_users_created_by on public.users(created_by);
         '''
       });
 
-      await _applyPolicies('users');
+      // Update RLS policies for users table with admin-user mapping
+      await supa.rpc('exec_sql', params: {
+        'query': '''
+        -- Drop existing policies
+        drop policy if exists "users_select" on public.users;
+        drop policy if exists "users_insert" on public.users;
+        drop policy if exists "users_update" on public.users;
+        drop policy if exists "users_delete" on public.users;
+
+        -- New RLS policies for admin-user mapping
+        create policy "admin_can_view_own_users"
+        on public.users
+        for select
+        using (
+          -- Allow admins to see their own workers
+          exists (
+            select 1 from public.admin_user_mapping
+            where admin_user_mapping.user_id = users.id
+              and admin_user_mapping.admin_id = auth.uid()
+          )
+          -- Allow workers to see their own record
+          or users.id = (select id from public.users where phone = auth.jwt() ->> 'phone')
+          -- Allow super admin to see all users (optional)
+          or (select email from public.users where phone = auth.jwt() ->> 'phone') = 'superadmin@yourapp.com'
+        );
+
+        create policy "admin_can_insert_users"
+        on public.users
+        for insert
+        with check (
+          -- Allow admins to create workers
+          (select role from public.users where phone = auth.jwt() ->> 'phone') = 'admin'
+        );
+
+        create policy "admin_can_update_own_users"
+        on public.users
+        for update
+        using (
+          -- Allow admins to update their own workers
+          exists (
+            select 1 from public.admin_user_mapping
+            where admin_user_mapping.user_id = users.id
+              and admin_user_mapping.admin_id = auth.uid()
+          )
+          -- Allow workers to update their own record
+          or users.id = (select id from public.users where phone = auth.jwt() ->> 'phone')
+        )
+        with check (
+          -- Allow admins to update their own workers
+          exists (
+            select 1 from public.admin_user_mapping
+            where admin_user_mapping.user_id = users.id
+              and admin_user_mapping.admin_id = auth.uid()
+          )
+          -- Allow workers to update their own record
+          or users.id = (select id from public.users where phone = auth.jwt() ->> 'phone')
+        );
+
+        create policy "admin_can_delete_own_users"
+        on public.users
+        for delete
+        using (
+          -- Allow admins to delete their own workers
+          exists (
+            select 1 from public.admin_user_mapping
+            where admin_user_mapping.user_id = users.id
+              and admin_user_mapping.admin_id = auth.uid()
+          )
+        );
+        '''
+      });
+
       Logger.info('Users table columns and policies ensured');
     } catch (e) {
       Logger.error('Error ensuring users columns and policies: $e', e);
@@ -142,6 +220,13 @@ class DatabaseUpdater {
           logout_longitude double precision,
           logout_address text,
           is_logged_in boolean default false,
+          city text,
+          state text,
+          pincode text,
+          country text,
+          logout_city text,
+          logout_state text,
+          logout_pincode text,
           created_at timestamptz default now()
         );
 
@@ -176,7 +261,12 @@ class DatabaseUpdater {
           date date,
           purpose text,
           note text,
-          status text default 'pending'
+          status text default 'pending' check (status in ('pending', 'approved', 'rejected', 'deducted')),
+          deducted_from_salary_id bigint references public.salary(id) on delete set null,
+          approved_by bigint references public.users(id) on delete set null,
+          approved_date timestamptz,
+          created_at timestamptz default now(),
+          updated_at timestamptz default now()
         );
         '''
       });
@@ -208,7 +298,9 @@ class DatabaseUpdater {
           total_salary numeric,
           paid boolean default false,
           paid_date timestamptz,
-          pdf_url text
+          pdf_url text,
+          created_at timestamptz default now(),
+          updated_at timestamptz default now()
         );
         '''
       });
@@ -248,9 +340,89 @@ class DatabaseUpdater {
     }
   }
 
+  // 7️⃣ ADMIN-USER MAPPING
+  Future<void> _ensureAdminUserMappingTableAndPolicies() async {
+    try {
+      await supa.rpc('exec_sql', params: {
+        'query': '''
+        -- ADMIN-USER MAPPING TABLE
+        create table if not exists public.admin_user_mapping (
+          id bigint generated always as identity primary key,
+          admin_id uuid references auth.users(id) on delete cascade,
+          user_id bigint references public.users(id) on delete cascade,
+          created_at timestamptz default now(),
+          unique (admin_id, user_id)
+        );
+
+        -- Create indexes for performance
+        create index if not exists idx_admin_user_mapping_admin_id on public.admin_user_mapping(admin_id);
+        create index if not exists idx_admin_user_mapping_user_id on public.admin_user_mapping(user_id);
+
+        -- Enable Row Level Security
+        alter table public.admin_user_mapping enable row level security;
+
+        -- Policies
+
+        -- 1️⃣ Allow admins to view only their mappings
+        create policy "admin_can_view_their_mappings"
+        on public.admin_user_mapping
+        for select
+        using (auth.uid() = admin_id);
+
+        -- 2️⃣ Allow admins to insert mappings for themselves only
+        create policy "admin_can_insert_own_mappings"
+        on public.admin_user_mapping
+        for insert
+        with check (auth.uid() = admin_id);
+
+        -- 3️⃣ Allow admins to delete only their mappings
+        create policy "admin_can_delete_own_mappings"
+        on public.admin_user_mapping
+        for delete
+        using (auth.uid() = admin_id);
+
+        -- Function to auto-map admin and user after insert
+        create or replace function public.auto_map_admin_to_user()
+        returns trigger
+        language plpgsql
+        security definer
+        set search_path = public
+        as \$\$
+        begin
+          if new.created_by is not null then
+            insert into public.admin_user_mapping (admin_id, user_id)
+            values (new.created_by, new.id)
+            on conflict do nothing;
+          end if;
+          return new;
+        end;
+        \$\$;
+
+        -- Trigger
+        drop trigger if exists trg_auto_map_admin_user on public.users;
+        create trigger trg_auto_map_admin_user
+        after insert on public.users
+        for each row
+        execute function public.auto_map_admin_to_user();
+        '''
+      });
+
+      Logger.info('Admin-user mapping table ensured');
+    } catch (e) {
+      Logger.error('Error ensuring admin-user mapping table: $e', e);
+      rethrow;
+    }
+  }
+
   // ✅ Apply open policies so it works in Web (GitHub) + Mobile
   Future<void> _applyPolicies(String tableName) async {
     try {
+      // Skip applying default policies for users table since we have custom policies
+      if (tableName == 'users') {
+        Logger.info('Skipping default policies for users table');
+        return;
+      }
+      
       await supa.rpc('exec_sql', params: {
         'query': '''
         alter table public.$tableName enable row level security;

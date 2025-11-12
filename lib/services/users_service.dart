@@ -1,6 +1,7 @@
 import '../utils/map_case.dart';
 import 'supabase_client.dart';
 import 'schema_refresher.dart'; // Add this import
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UsersService {
   final SchemaRefresher _schemaRefresher = SchemaRefresher(); // Add this
@@ -11,6 +12,14 @@ class UsersService {
     final payload = MapCase.toSnake(user);
     if (payload.containsKey('id')) {
       payload.remove('id');
+    }
+    
+    // Automatically set created_by to current admin if not already set
+    if (!payload.containsKey('created_by') || payload['created_by'] == null) {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser != null) {
+        payload['created_by'] = currentUser.id;
+      }
     }
     
     try {
@@ -93,6 +102,65 @@ class UsersService {
       // Retry after schema refresh
       await Future.delayed(const Duration(seconds: 1));
       return await supa.from('users').select().eq('email', email).maybeSingle();
+    }
+  }
+
+  /// Get all workers for the current admin
+  Future<List<Map<String, dynamic>>> getWorkersForCurrentAdmin() async {
+    try {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) {
+        return [];
+      }
+      
+      // Due to RLS policies, this will only return workers mapped to the current admin
+      final response = await supa
+          .from('users')
+          .select()
+          .eq('role', 'worker')
+          .order('id');
+      
+      return response;
+    } catch (e) {
+      await _schemaRefresher.tryFixSchemaError(e);
+      
+      // Retry after schema refresh
+      await Future.delayed(const Duration(seconds: 1));
+      
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) {
+        return [];
+      }
+      
+      final response = await supa
+          .from('users')
+          .select()
+          .eq('role', 'worker')
+          .order('id');
+      
+      return response;
+    }
+  }
+
+  /// Check if current admin has access to a specific user
+  Future<bool> doesCurrentAdminHaveAccessToUser(int userId) async {
+    try {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) {
+        return false;
+      }
+      
+      // Due to RLS policies, if we can retrieve the user, the admin has access
+      final user = await supa
+          .from('users')
+          .select('id')
+          .eq('id', userId)
+          .maybeSingle();
+      
+      return user != null;
+    } catch (e) {
+      // If there's an error (like permission denied), the admin doesn't have access
+      return false;
     }
   }
 }

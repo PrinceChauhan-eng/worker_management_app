@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/schema_refresher.dart';
+import 'package:worker_managment_app/services/schema_refresher.dart';
 
 void main() {
   group('SchemaRefresher Tests', () {

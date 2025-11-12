@@ -35,7 +35,6 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
     return Scaffold(
       appBar: CustomAppBar(
         title: 'Worker Attendance',
-        onLeadingPressed: () => Navigator.pop(context),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),

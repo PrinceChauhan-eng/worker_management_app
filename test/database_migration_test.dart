@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/database_updater.dart';
+import 'package:worker_managment_app/services/database_updater.dart';
 
 void main() {
   group('Database Migration Tests', () {
