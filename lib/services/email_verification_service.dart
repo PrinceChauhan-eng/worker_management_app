@@ -16,7 +16,7 @@ class EmailVerificationService {
   static String generateOTP() {
     final random = Random();
     final otp = random.nextInt(900000) + 100000; // Generates 6-digit number
-    Logger.debug('Generated OTP: $otp');
+    Logger.info('Generated OTP: $otp');
     return otp.toString();
   }
 
@@ -41,7 +41,7 @@ class EmailVerificationService {
           }
           return true;
         } else {
-          Logger.warning('Failed to send real email, falling back to demo mode');
+          Logger.warn('Failed to send real email, falling back to demo mode');
           // Fallback to demo mode
           // Check if context is still mounted before using it
           if (context?.mounted ?? false) {

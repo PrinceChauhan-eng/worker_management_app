@@ -16,7 +16,7 @@ Timestamp: ${DateTime.now()}
 ''';
     
     // Log to console
-    Logger.error(errorInfo, error, stackTrace);
+    Logger.error(errorInfo, error);
     
     // Show user-friendly message
     if (!kDebugMode) {

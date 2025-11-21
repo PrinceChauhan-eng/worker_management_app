@@ -109,12 +109,29 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
 
   Future<void> _saveAttendance() async {
     if (_formKey.currentState!.validate()) {
+      // Add strong form validation (Fix #6)
+      if (_loginTimeController.text.isEmpty) {
+        Fluttertoast.showToast(
+          msg: "Enter Login Time!",
+          backgroundColor: Colors.red,
+        );
+        return;
+      }
+      
+      if (_logoutTimeController.text.isEmpty) {
+        Fluttertoast.showToast(
+          msg: "Enter Logout Time!",
+          backgroundColor: Colors.red,
+        );
+        return;
+      }
+      
       try {
         final loginStatusProvider =
             Provider.of<LoginStatusProvider>(context, listen: false);
 
         final updatedLoginStatus = LoginStatus(
-          id: widget.loginStatus.id,
+          id: widget.loginStatus.id, // Ensure ID is passed for UPDATE
           workerId: widget.loginStatus.workerId,
           date: _dateController.text,
           loginTime:
@@ -202,6 +219,8 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
                         labelText: 'Login Time',
                         hintText: 'Select login time',
                         prefixIcon: Icons.login,
+                        validator: (value) =>
+                            value == null || value.isEmpty ? 'Please enter login time' : null,
                       ),
                     ),
                   ),
@@ -218,6 +237,8 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
                         labelText: 'Logout Time',
                         hintText: 'Select logout time',
                         prefixIcon: Icons.logout,
+                        validator: (value) =>
+                            value == null || value.isEmpty ? 'Please enter logout time' : null,
                       ),
                     ),
                   ),

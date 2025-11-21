@@ -14,7 +14,7 @@ class AdvanceService {
     }
     
     try {
-      Logger.debug('AdvanceService.insert - payload: $payload');
+      Logger.info('AdvanceService.insert - payload: $payload');
       final res = await supa.from('advance').insert(payload).select('id').single();
       return (res['id'] as int);
     } catch (e) {
@@ -23,7 +23,7 @@ class AdvanceService {
       await Future.delayed(const Duration(seconds: 2));
       
       // Retry the operation
-      Logger.debug('AdvanceService.insert - retrying after schema refresh');
+      Logger.info('AdvanceService.insert - retrying after schema refresh');
       final res = await supa.from('advance').insert(payload).select('id').single();
       return (res['id'] as int);
     }
@@ -73,17 +73,17 @@ class AdvanceService {
     // Remove id from payload for update operations
     final payload = MapCase.toSnake(data);
     if (payload.containsKey('id')) {
-      Logger.debug('AdvanceService.updateById - removing id field from payload');
+      Logger.info('AdvanceService.updateById - removing id field from payload');
       payload.remove('id');
     }
     
     try {
-      Logger.debug('AdvanceService.updateById - payload: $payload, id: $id');
+      Logger.info('AdvanceService.updateById - payload: $payload, id: $id');
       await supa.from('advance').update(payload).eq('id', id);
     } catch (e) {
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       await Future.delayed(const Duration(seconds: 2));
-      Logger.debug('AdvanceService.updateById - retrying after schema refresh');
+      Logger.info('AdvanceService.updateById - retrying after schema refresh');
       await supa.from('advance').update(payload).eq('id', id);
     }
   }

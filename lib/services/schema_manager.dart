@@ -22,7 +22,7 @@ class SchemaManager {
       Logger.info('Step 1: Validating current schema...');
       final isValid = await _schemaSyncService.validateSchema();
       if (!isValid) {
-        Logger.warning('Current schema validation failed, attempting to fix...');
+        Logger.warn('Current schema validation failed, attempting to fix...');
         await _schemaRefresher.tryFixExtendedSchemaError('Schema validation failed');
       }
       

@@ -16,9 +16,20 @@ class LoginStatusProvider extends BaseProvider {
   LoginStatus? _todayLoginStatus;
   bool _isLoggedIn = false;
 
+  // Add caching flags for today's data (Fix #5)
+  bool _isLoadingToday = false;
+  bool _isLoadedToday = false;
+  Map<String, dynamic>? _todayCache;
+
   List<LoginStatus> get loginStatuses => _loginStatuses;
   LoginStatus? get todayLoginStatus => _todayLoginStatus;
   bool get isLoggedIn => _isLoggedIn;
+
+  // Invalidate today's cache (Fix #5)
+  void _invalidateTodayCache() {
+    _isLoadedToday = false;
+    _todayCache = null;
+  }
 
   // Load all login statuses
   Future<void> loadLoginStatuses() async {
@@ -100,14 +111,49 @@ class LoginStatusProvider extends BaseProvider {
     }
   }
 
-  // Check today's login status for a worker
+  // Check today's login status for a worker with caching (Fix #5)
   Future<void> checkTodayLoginStatus(int workerId) async {
+    // Check if already loaded
+    if (_isLoadedToday && _todayCache != null) {
+      // Use cached data
+      _todayLoginStatus = _todayCache!['todayLoginStatus'] as LoginStatus?;
+      _isLoggedIn = _todayCache!['isLoggedIn'] as bool;
+      notifyListeners();
+      return;
+    }
+
+    // Check if already loading
+    if (_isLoadingToday) {
+      // Wait for the ongoing request to complete
+      while (_isLoadingToday) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      // Return cached data if available
+      if (_todayCache != null) {
+        _todayLoginStatus = _todayCache!['todayLoginStatus'] as LoginStatus?;
+        _isLoggedIn = _todayCache!['isLoggedIn'] as bool;
+        notifyListeners();
+      }
+      return;
+    }
+
+    // Set loading flag
+    _isLoadingToday = true;
     setState(ViewState.busy);
+    
     try {
       String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
       final statusData = await _loginService.todayForWorker(workerId, today);
       _todayLoginStatus = statusData != null ? LoginStatus.fromMap(statusData) : null;
       _isLoggedIn = _todayLoginStatus?.isLoggedIn ?? false;
+      
+      // Cache the data
+      _todayCache = {
+        'todayLoginStatus': _todayLoginStatus,
+        'isLoggedIn': _isLoggedIn,
+      };
+      _isLoadedToday = true;
+      
       setState(ViewState.idle);
       notifyListeners();
     } catch (e) {
@@ -122,12 +168,31 @@ class LoginStatusProvider extends BaseProvider {
         final statusData = await _loginService.todayForWorker(workerId, today);
         _todayLoginStatus = statusData != null ? LoginStatus.fromMap(statusData) : null;
         _isLoggedIn = _todayLoginStatus?.isLoggedIn ?? false;
+        
+        // Cache the data
+        _todayCache = {
+          'todayLoginStatus': _todayLoginStatus,
+          'isLoggedIn': _isLoggedIn,
+        };
+        _isLoadedToday = true;
+        
         setState(ViewState.idle);
         notifyListeners();
       } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
       }
+    } finally {
+      // Reset loading flag
+      _isLoadingToday = false;
+    }
+  }
+
+  /// Load today's login status only if not already loaded or if forced
+  Future<void> loadIfNeeded(int workerId) async {
+    // Only load if todayLoginStatus is null
+    if (_todayLoginStatus == null) {
+      await checkTodayLoginStatus(workerId);
     }
   }
 
@@ -135,19 +200,21 @@ class LoginStatusProvider extends BaseProvider {
   Future<Map<String, dynamic>> workerLogin(User worker) async {
     setState(ViewState.busy);
     try {
-      String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      String currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
+      String today = DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
+      // Use normalized time method (Fix #7)
+      String currentTime = Logger.nowTime();
       
-      // Get current location with address
+      // Get current location with address (with timeout)
       final locationService = LocationService();
-      final locationData = await locationService.getCurrentLocationWithAddress();
+      Map<String, dynamic>? locationData;
       
-      if (locationData == null) {
-        setState(ViewState.idle);
-        return {
-          'success': false,
-          'message': 'Unable to get location. Please enable location services and try again.',
-        };
+      try {
+        // Add timeout to the location request
+        locationData = await locationService.getCurrentLocationWithAddress()
+            .timeout(const Duration(seconds: 15)); // 15 second timeout
+      } catch (e) {
+        Logger.error('Location request timed out during login: $e', e);
+        // Continue with login even if location fails
       }
       
       // Check if there's already a login status for today
@@ -160,30 +227,45 @@ class LoginStatusProvider extends BaseProvider {
       if (existingStatus != null) {
         // Update existing login status with location data
         statusData = {
-          'id': existingStatus.id,
+          'id': existingStatus.id, // Keep ID for updates
           'worker_id': worker.id!,
           'date': today,
           'login_time': existingStatus.loginTime ?? currentTime,
           'logout_time': existingStatus.logoutTime,
           'is_logged_in': true,
-          'login_latitude': locationData['latitude'],
-          'login_longitude': locationData['longitude'],
-          'login_address': locationData['address'],
+          'login_latitude': existingStatus.loginLatitude,
+          'login_longitude': existingStatus.loginLongitude,
+          'login_address': existingStatus.loginAddress,
         };
+        
+        // Add new location data only if we got it
+        if (locationData != null) {
+          statusData.addAll({
+            'login_latitude': locationData['latitude'],
+            'login_longitude': locationData['longitude'],
+            'login_address': locationData['address'],
+          });
+        }
         
         await _loginService.upsertStatus(statusData);
         loginStatus = LoginStatus.fromMap(statusData);
       } else {
-        // Create new login status record with location data
+        // Create new login status record (no ID for inserts)
         statusData = {
           'worker_id': worker.id!,
           'date': today,
           'login_time': currentTime,
           'is_logged_in': true,
-          'login_latitude': locationData['latitude'],
-          'login_longitude': locationData['longitude'],
-          'login_address': locationData['address'],
         };
+        
+        // Add location data only if we got it
+        if (locationData != null) {
+          statusData.addAll({
+            'login_latitude': locationData['latitude'],
+            'login_longitude': locationData['longitude'],
+            'login_address': locationData['address'],
+          });
+        }
         
         await _loginService.upsertStatus(statusData);
         loginStatus = LoginStatus.fromMap(statusData);
@@ -192,12 +274,24 @@ class LoginStatusProvider extends BaseProvider {
       // Update local state
       _todayLoginStatus = loginStatus;
       _isLoggedIn = true;
+      
+      // Invalidate cache for today's data (Fix #5)
+      _invalidateTodayCache();
+      
       setState(ViewState.idle);
       notifyListeners();
 
+      // Create message based on whether we got location data
+      String message = 'Login successful! Attendance marked as present.';
+      if (locationData != null) {
+        message += '\nLocation: ${locationData['address']}';
+      } else {
+        message += '\nLocation data not available.';
+      }
+
       return {
         'success': true,
-        'message': 'Login successful! Attendance marked as present.\nLocation: ${locationData['address']}',
+        'message': message,
         'loginStatus': loginStatus,
       };
     } catch (e) {
@@ -209,19 +303,21 @@ class LoginStatusProvider extends BaseProvider {
       try {
         await Future.delayed(const Duration(seconds: 2));
         // Retry the login operation
-        String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-        String currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
+        String today = DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
+        // Use normalized time method (Fix #7)
+        String currentTime = Logger.nowTime();
         
-        // Get current location with address
+        // Get current location with address (with timeout)
         final locationService = LocationService();
-        final locationData = await locationService.getCurrentLocationWithAddress();
+        Map<String, dynamic>? locationData;
         
-        if (locationData == null) {
-          setState(ViewState.idle);
-          return {
-            'success': false,
-            'message': 'Unable to get location. Please enable location services and try again.',
-          };
+        try {
+          // Add timeout to the location request
+          locationData = await locationService.getCurrentLocationWithAddress()
+              .timeout(const Duration(seconds: 15)); // 15 second timeout
+        } catch (e) {
+          Logger.error('Location request timed out during login: $e', e);
+          // Continue with login even if location fails
         }
         
         // Check if there's already a login status for today
@@ -234,30 +330,45 @@ class LoginStatusProvider extends BaseProvider {
         if (existingStatus != null) {
           // Update existing login status with location data
           statusData = {
-            'id': existingStatus.id,
+            'id': existingStatus.id, // Keep ID for updates
             'worker_id': worker.id!,
             'date': today,
             'login_time': existingStatus.loginTime ?? currentTime,
             'logout_time': existingStatus.logoutTime,
             'is_logged_in': true,
-            'login_latitude': locationData['latitude'],
-            'login_longitude': locationData['longitude'],
-            'login_address': locationData['address'],
+            'login_latitude': existingStatus.loginLatitude,
+            'login_longitude': existingStatus.loginLongitude,
+            'login_address': existingStatus.loginAddress,
           };
+          
+          // Add new location data only if we got it
+          if (locationData != null) {
+            statusData.addAll({
+              'login_latitude': locationData['latitude'],
+              'login_longitude': locationData['longitude'],
+              'login_address': locationData['address'],
+            });
+          }
           
           await _loginService.upsertStatus(statusData);
           loginStatus = LoginStatus.fromMap(statusData);
         } else {
-          // Create new login status record with location data
+          // Create new login status record (no ID for inserts)
           statusData = {
             'worker_id': worker.id!,
             'date': today,
             'login_time': currentTime,
             'is_logged_in': true,
-            'login_latitude': locationData['latitude'],
-            'login_longitude': locationData['longitude'],
-            'login_address': locationData['address'],
           };
+          
+          // Add location data only if we got it
+          if (locationData != null) {
+            statusData.addAll({
+              'login_latitude': locationData['latitude'],
+              'login_longitude': locationData['longitude'],
+              'login_address': locationData['address'],
+            });
+          }
           
           await _loginService.upsertStatus(statusData);
           loginStatus = LoginStatus.fromMap(statusData);
@@ -266,12 +377,24 @@ class LoginStatusProvider extends BaseProvider {
         // Update local state
         _todayLoginStatus = loginStatus;
         _isLoggedIn = true;
+        
+        // Invalidate cache for today's data (Fix #5)
+        _invalidateTodayCache();
+        
         setState(ViewState.idle);
         notifyListeners();
 
+        // Create message based on whether we got location data
+        String message = 'Login successful! Attendance marked as present.';
+        if (locationData != null) {
+          message += '\nLocation: ${locationData['address']}';
+        } else {
+          message += '\nLocation data not available.';
+        }
+
         return {
           'success': true,
-          'message': 'Login successful! Attendance marked as present.\nLocation: ${locationData['address']}',
+          'message': message,
           'loginStatus': loginStatus,
         };
       } catch (retryError) {
@@ -285,12 +408,12 @@ class LoginStatusProvider extends BaseProvider {
     }
   }
 
-  // Worker logout with location tracking
+  // Worker logout with optional location tracking
   Future<Map<String, dynamic>> workerLogout(User worker) async {
     setState(ViewState.busy);
     try {
       // Check if worker is logged in
-      String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      String today = DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
       final todayStatusData = await _loginService.todayForWorker(worker.id!, today);
       final LoginStatus? todayStatus = todayStatusData != null ? LoginStatus.fromMap(todayStatusData) : null;
 
@@ -302,23 +425,25 @@ class LoginStatusProvider extends BaseProvider {
         };
       }
 
-      // Get current location with address for logout
+      // Try to get current location with address for logout (but don't block if it fails)
       final locationService = LocationService();
-      final locationData = await locationService.getCurrentLocationWithAddress();
+      Map<String, dynamic>? locationData;
       
-      if (locationData == null) {
-        setState(ViewState.idle);
-        return {
-          'success': false,
-          'message': 'Unable to get location. Please enable location services and try again.',
-        };
+      try {
+        // Add timeout to the location request
+        locationData = await locationService.getCurrentLocationWithAddress()
+            .timeout(const Duration(seconds: 15)); // 15 second timeout
+      } catch (e) {
+        Logger.error('Location request timed out or failed during logout: $e', e);
+        // Continue with logout even if location fails
       }
 
-      // Update login status with logout information and location data
-      String currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
+      // Update login status with logout information
+      // Use normalized time method (Fix #7)
+      String currentTime = Logger.nowTime();
       
       final updatedStatusData = {
-        'id': todayStatus.id,
+        'id': todayStatus.id, // Keep ID for updates
         'worker_id': worker.id!,
         'date': today,
         'login_time': todayStatus.loginTime,
@@ -327,22 +452,40 @@ class LoginStatusProvider extends BaseProvider {
         'login_latitude': todayStatus.loginLatitude,
         'login_longitude': todayStatus.loginLongitude,
         'login_address': todayStatus.loginAddress,
-        'logout_latitude': locationData['latitude'],
-        'logout_longitude': locationData['longitude'],
-        'logout_address': locationData['address'],
       };
+
+      // Add logout location data only if we got it
+      if (locationData != null) {
+        updatedStatusData.addAll({
+          'logout_latitude': locationData['latitude'],
+          'logout_longitude': locationData['longitude'],
+          'logout_address': locationData['address'],
+        });
+      }
 
       await _loginService.upsertStatus(updatedStatusData);
 
       // Update local state
       _todayLoginStatus = LoginStatus.fromMap(updatedStatusData);
       _isLoggedIn = false;
+      
+      // Invalidate cache for today's data (Fix #5)
+      _invalidateTodayCache();
+      
       setState(ViewState.idle);
       notifyListeners();
 
+      // Create message based on whether we got location data
+      String message = 'Logout successful!';
+      if (locationData != null) {
+        message += '\nLocation: ${locationData['address']}';
+      } else {
+        message += '\nLocation data not available.';
+      }
+
       return {
         'success': true,
-        'message': 'Logout successful!\nLocation: ${locationData['address']}',
+        'message': message,
       };
     } catch (e) {
       Logger.error('Error during worker logout: $e', e);
@@ -353,7 +496,7 @@ class LoginStatusProvider extends BaseProvider {
       try {
         await Future.delayed(const Duration(seconds: 2));
         // Retry the logout operation
-        String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+        String today = DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
         final todayStatusData = await _loginService.todayForWorker(worker.id!, today);
         final LoginStatus? todayStatus = todayStatusData != null ? LoginStatus.fromMap(todayStatusData) : null;
 
@@ -365,23 +508,25 @@ class LoginStatusProvider extends BaseProvider {
           };
         }
 
-        // Get current location with address for logout
+        // Try to get current location with address for logout (but don't block if it fails)
         final locationService = LocationService();
-        final locationData = await locationService.getCurrentLocationWithAddress();
+        Map<String, dynamic>? locationData;
         
-        if (locationData == null) {
-          setState(ViewState.idle);
-          return {
-            'success': false,
-            'message': 'Unable to get location. Please enable location services and try again.',
-          };
+        try {
+          // Add timeout to the location request
+          locationData = await locationService.getCurrentLocationWithAddress()
+              .timeout(const Duration(seconds: 15)); // 15 second timeout
+        } catch (e) {
+          Logger.error('Location request timed out or failed during logout: $e', e);
+          // Continue with logout even if location fails
         }
 
-        // Update login status with logout information and location data
-        String currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
+        // Update login status with logout information
+        // Use normalized time method (Fix #7)
+        String currentTime = Logger.nowTime();
         
         final updatedStatusData = {
-          'id': todayStatus.id,
+          'id': todayStatus.id, // Keep ID for updates
           'worker_id': worker.id!,
           'date': today,
           'login_time': todayStatus.loginTime,
@@ -390,22 +535,40 @@ class LoginStatusProvider extends BaseProvider {
           'login_latitude': todayStatus.loginLatitude,
           'login_longitude': todayStatus.loginLongitude,
           'login_address': todayStatus.loginAddress,
-          'logout_latitude': locationData['latitude'],
-          'logout_longitude': locationData['longitude'],
-          'logout_address': locationData['address'],
         };
+
+        // Add logout location data only if we got it
+        if (locationData != null) {
+          updatedStatusData.addAll({
+            'logout_latitude': locationData['latitude'],
+            'logout_longitude': locationData['longitude'],
+            'logout_address': locationData['address'],
+          });
+        }
 
         await _loginService.upsertStatus(updatedStatusData);
 
         // Update local state
         _todayLoginStatus = LoginStatus.fromMap(updatedStatusData);
         _isLoggedIn = false;
+        
+        // Invalidate cache for today's data (Fix #5)
+        _invalidateTodayCache();
+        
         setState(ViewState.idle);
         notifyListeners();
 
+        // Create message based on whether we got location data
+        String message = 'Logout successful!';
+        if (locationData != null) {
+          message += '\nLocation: ${locationData['address']}';
+        } else {
+          message += '\nLocation data not available.';
+        }
+
         return {
           'success': true,
-          'message': 'Logout successful!\nLocation: ${locationData['address']}',
+          'message': message,
         };
       } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
@@ -487,6 +650,9 @@ class LoginStatusProvider extends BaseProvider {
       // Reload login statuses to reflect changes
       await loadLoginStatuses();
       
+      // Invalidate cache for today's data (Fix #5)
+      _invalidateTodayCache();
+      
       setState(ViewState.idle);
       notifyListeners();
       return id;
@@ -503,6 +669,9 @@ class LoginStatusProvider extends BaseProvider {
         // Reload login statuses to reflect changes
         await loadLoginStatuses();
         
+        // Invalidate cache for today's data (Fix #5)
+        _invalidateTodayCache();
+        
         setState(ViewState.idle);
         notifyListeners();
         return id;
@@ -512,5 +681,31 @@ class LoginStatusProvider extends BaseProvider {
         rethrow;
       }
     }
+  }
+
+  /// Get today's login status
+  Future<List<Map<String, dynamic>>> getTodayLoginStatus() async {
+    try {
+      return await _loginService.getTodayLoginStatus();
+    } catch (e) {
+      // Try to fix schema errors
+      await _schemaRefresher.tryFixExtendedSchemaError(e);
+      
+      // Retry after schema refresh
+      await Future.delayed(const Duration(seconds: 2));
+      return await _loginService.getTodayLoginStatus();
+    }
+  }
+
+  /// Refresh today's login status data
+  Future<void> refreshToday() async {
+    // Invalidate cache
+    _invalidateTodayCache();
+    
+    // Reload login statuses
+    await loadLoginStatuses();
+    
+    // Notify listeners
+    notifyListeners();
   }
 }

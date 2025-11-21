@@ -22,7 +22,7 @@ class Attendance {
       'date': date,
       'in_time': inTime,
       'out_time': outTime,
-      'present': present ? 1 : 0,
+      'present': present, // Keep as boolean to match database column type
     };
   }
 

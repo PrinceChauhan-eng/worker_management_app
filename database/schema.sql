@@ -51,7 +51,9 @@ create table if not exists public.attendance (
   logout_longitude double precision,
   logout_address text,
   created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  -- Add unique constraint for worker_id and date
+  unique(worker_id, date)
 );
 
 -- Create indexes for attendance table
@@ -80,7 +82,9 @@ create table if not exists public.login_status (
   logout_city text,
   logout_state text,
   logout_pincode text,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  -- Add unique constraint for worker_id and date
+  unique(worker_id, date)
 );
 
 -- Create indexes for login_status table
@@ -366,3 +370,18 @@ create trigger update_advance_updated_at before update on public.advance
 drop trigger if exists update_salary_updated_at on public.salary;
 create trigger update_salary_updated_at before update on public.salary
   for each row execute procedure update_updated_at_column();
+
+-- Add the missing mark_absent_workers function
+-- Function to mark absent workers
+create or replace function mark_absent_workers()
+returns void
+language sql
+as $$
+insert into public.attendance (worker_id, date, present)
+select id, current_date, false
+from public.users
+where role = 'worker'
+  and id not in (
+    select worker_id from public.attendance where date = current_date
+  );
+$$;

@@ -141,7 +141,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Today is ${DateFormat('EEEE, MMMM d').format(DateTime.now().toLocal())}',
+                      'Today is ${DateFormat('EEEE, MMMM d').format(DateTime.now())}',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: Colors.grey[600],

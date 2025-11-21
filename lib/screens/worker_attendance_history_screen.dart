@@ -14,7 +14,7 @@ class WorkerAttendanceHistoryScreen extends StatefulWidget {
 }
 
 class _WorkerAttendanceHistoryScreenState extends State<WorkerAttendanceHistoryScreen> {
-  String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now());
+  String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now().toLocal());
 
   @override
   void initState() {
@@ -36,14 +36,14 @@ class _WorkerAttendanceHistoryScreenState extends State<WorkerAttendanceHistoryS
   _selectMonth(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: DateTime.now().toLocal(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
       initialDatePickerMode: DatePickerMode.year,
     );
     if (picked != null) {
       setState(() {
-        _selectedMonth = DateFormat('yyyy-MM').format(picked);
+        _selectedMonth = DateFormat('yyyy-MM').format(picked.toLocal());
       });
       
       // Reload attendance for selected month
@@ -215,7 +215,7 @@ class _WorkerAttendanceHistoryScreenState extends State<WorkerAttendanceHistoryS
                             ),
                             title: Text(
                               DateFormat('dd MMM yyyy').format(
-                                DateFormat('yyyy-MM-dd').parse(status.date),
+                                DateFormat('yyyy-MM-dd').parse(status.date).toLocal(),
                               ),
                               style: GoogleFonts.poppins(
                                 fontWeight: FontWeight.bold,

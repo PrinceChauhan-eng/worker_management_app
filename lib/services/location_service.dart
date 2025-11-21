@@ -1,5 +1,7 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../utils/logger.dart';
 
 class LocationService {
@@ -39,7 +41,7 @@ class LocationService {
     }
   }
 
-  /// Get current location (latitude, longitude)
+  /// Get current location (latitude, longitude) with timeout
   Future<Map<String, double>?> getCurrentLocation() async {
     try {
       // Check permissions first
@@ -48,25 +50,33 @@ class LocationService {
         return null;
       }
 
-      // Get current position
+      // Get current position with timeout settings
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10), // Add timeout of 10 seconds
       );
 
       return {
         'latitude': position.latitude,
         'longitude': position.longitude,
       };
+    } on TimeoutException catch (e) {
+      Logger.error('Location request timed out: $e', e);
+      return null;
     } catch (e) {
       Logger.error('Error getting current location: $e', e);
       return null;
     }
   }
 
-  /// Convert coordinates to address
+  /// Convert coordinates to address with timeout
   Future<String?> getAddressFromCoordinates(double latitude, double longitude) async {
     try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(latitude, longitude);
+      // Add timeout to geocoding request
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        latitude, 
+        longitude,
+      ).timeout(const Duration(seconds: 10)); // Add timeout of 10 seconds
       
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
@@ -93,6 +103,9 @@ class LocationService {
         return address.isNotEmpty ? address : 'Address not found';
       }
       
+      return 'Address not found';
+    } on TimeoutException catch (e) {
+      Logger.error('Geocoding request timed out: $e', e);
       return 'Address not found';
     } catch (e) {
       Logger.error('Error getting address from coordinates: $e', e);

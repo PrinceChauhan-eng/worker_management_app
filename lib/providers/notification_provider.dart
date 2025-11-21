@@ -15,13 +15,23 @@ class NotificationProvider extends BaseProvider {
   int _unreadCount = 0;
   int get unreadCount => _unreadCount;
 
+  // Add caching flag (Fix #9)
+  bool isLoaded = false;
+
   // Remove the automatic database access during initialization
   Future<void> loadNotifications(int userId, String userRole) async {
+    // Check if already loaded (Fix #9)
+    if (isLoaded) return;
+    
     setState(ViewState.busy);
     try {
       final notificationsData = await _notificationsService.byUser(userId, userRole);
       _notifications = notificationsData.map((data) => NotificationModel.fromMap(data)).toList();
       _unreadCount = await _notificationsService.unreadCount(userId, userRole);
+      
+      // Mark as loaded (Fix #9)
+      isLoaded = true;
+      
       setState(ViewState.idle);
       notifyListeners();
     } catch (e) {
@@ -33,6 +43,9 @@ class NotificationProvider extends BaseProvider {
         final notificationsData = await _notificationsService.byUser(userId, userRole);
         _notifications = notificationsData.map((data) => NotificationModel.fromMap(data)).toList();
         _unreadCount = await _notificationsService.unreadCount(userId, userRole);
+        
+        // Mark as loaded (Fix #9)
+        isLoaded = true;
       } catch (retryError) {
         rethrow;
       } finally {
@@ -308,6 +321,14 @@ class NotificationProvider extends BaseProvider {
         setState(ViewState.idle);
         return false;
       }
+    }
+  }
+
+  /// Load notifications only if not already loaded or if forced
+  Future<void> loadIfNeeded(int userId, String userRole) async {
+    // Only load if notifications list is empty
+    if (_notifications.isEmpty) {
+      await loadNotifications(userId, userRole);
     }
   }
 }

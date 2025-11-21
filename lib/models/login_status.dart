@@ -50,7 +50,7 @@ class LoginStatus {
       'date': date,
       'login_time': loginTime,
       'logout_time': logoutTime,
-      'is_logged_in': isLoggedIn ? 1 : 0,
+      'is_logged_in': isLoggedIn, // Keep as boolean to match database column type
       'login_latitude': loginLatitude,
       'login_longitude': loginLongitude,
       'login_address': loginAddress,
@@ -97,14 +97,22 @@ class LoginStatus {
   // Helper method to check if worker has logged out
   bool get hasLoggedOut => logoutTime != null;
 
-  // Helper method to get working hours (capped at 8 hours for display)
+  // Helper method to get working hours with midnight/next-day fix (Fix #8)
   double get workingHours {
     if (loginTime == null || logoutTime == null) return 0.0;
     
     try {
-      final login = DateTime.parse('$date $loginTime');
-      final logout = DateTime.parse('$date $logoutTime');
-      final duration = logout.difference(login);
+      // Parse login and logout times with proper timezone conversion (Fix #8)
+      final login = DateTime.parse('$date $loginTime').toLocal();
+      final logout = DateTime.parse('$date $logoutTime').toLocal();
+      
+      // Midnight / next-day fix (Fix #8)
+      var logoutAdjusted = logout;
+      if (logoutAdjusted.isBefore(login)) {
+        logoutAdjusted = logoutAdjusted.add(const Duration(days: 1));
+      }
+      
+      final duration = logoutAdjusted.difference(login);
       final hours = duration.inMinutes / 60.0;
       // Cap at 8 hours for display purposes
       return hours > 8.0 ? 8.0 : hours;

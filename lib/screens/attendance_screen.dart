@@ -6,8 +6,11 @@ import 'package:intl/intl.dart';
 import '../models/attendance.dart';
 import '../providers/user_provider.dart';
 import '../providers/attendance_provider.dart';
+import '../providers/login_status_provider.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_button.dart';
+import '../services/attendance_service.dart';
+import '../utils/logger.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -38,8 +41,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     
-    // Load attendances for the selected date
+    // Add delay protection
     await attendanceProvider.loadAttendances();
+    if (!mounted) return; // prevent setState after dispose
     
     // Clear existing maps
     _attendanceStatus.clear();
@@ -61,10 +65,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           if (att.inTime.isNotEmpty) _inTime[worker.id!] = att.inTime;
           if (att.outTime.isNotEmpty) _outTime[worker.id!] = att.outTime;
         } else {
-          // Set default values for new attendance records
+          // Set default values for new attendance records ONLY for NEW records
           _attendanceStatus[worker.id!] = false;
-          _inTime[worker.id!] = '09:00';
-          _outTime[worker.id!] = '17:00';
+          _inTime[worker.id!] = '09:00:00';
+          _outTime[worker.id!] = '17:00:00';
         }
       }
     }
@@ -84,8 +88,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _selectedDate = DateFormat('yyyy-MM-dd').format(picked);
       });
       // Load existing attendance for the newly selected date
+      final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
+      attendanceProvider.invalidateTodayCache();
       await _loadExistingAttendance();
     }
+  }
+
+  // Show error message
+  void _showError(String message) {
+    Fluttertoast.showToast(
+      msg: message,
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      backgroundColor: Colors.red,
+    );
   }
 
   _saveAttendance() async {
@@ -105,26 +121,60 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         String inTime = _inTime[worker.id!] ?? '09:00';
         String outTime = _outTime[worker.id!] ?? '17:00';
         
+        // Add strong form validation (Fix #6)
+        if (isPresent) {
+          // Validate in_time and out_time for present workers
+          if (inTime.isEmpty) {
+            _showError("Enter In Time for ${worker.name}!");
+            allSaved = false;
+            continue;
+          }
+          
+          if (outTime.isEmpty) {
+            _showError("Enter Out Time for ${worker.name}!");
+            allSaved = false;
+            continue;
+          }
+        }
+        
         // Get existing attendance ID if available
         int? attendanceId = _attendanceIds[worker.id!];
 
-        // Create attendance object
+        // Create attendance object with correct payload keys (Fix #2)
         final attendance = Attendance(
           id: attendanceId, // Will be null for new records
           workerId: worker.id!,
           date: _selectedDate,
           inTime: isPresent ? inTime : '',
           outTime: isPresent ? outTime : '',
-          present: isPresent,
+          present: isPresent, // Fix present toggle (Fix #6)
         );
 
+        // Print the final payload before sending to verify types
+        final payload = attendance.toMap();
+        print('Final Attendance Payload: $payload');
+
         bool success;
-        if (isPresent) {
-          // For present workers, use upsert to ensure they're marked as present
-          success = await attendanceProvider.upsertAttendance(attendance);
+        if (attendance.id == null) {
+          success = await attendanceProvider.addAttendance(attendance);
         } else {
-          // For absent workers, we still want to create a record with present = false
-          success = await attendanceProvider.upsertAttendance(attendance);
+          success = await attendanceProvider.updateAttendance(attendance);
+        }
+        
+        // Sync login status with attendance
+        if (success) {
+          try {
+            final attendanceService = AttendanceService();
+            await attendanceService.syncLoginStatusWithAttendance(
+              workerId: worker.id!,
+              date: _selectedDate,
+              inTime: isPresent ? inTime : null,
+              outTime: isPresent ? outTime : null,
+              present: isPresent ? 1 : 0,
+            );
+          } catch (e) {
+            Logger.error('Error syncing login status with attendance: $e', e);
+          }
         }
         
         if (!success) {
@@ -145,6 +195,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
       // Reload attendance data to reflect changes
       await _loadExistingAttendance();
+      
+      // Refresh login status for all workers to ensure dashboard is updated
+      final loginStatusProvider = Provider.of<LoginStatusProvider>(context, listen: false);
+      await loginStatusProvider.refreshToday();
     } else {
       Fluttertoast.showToast(
         msg: 'Failed to save attendance. Please try again.',
@@ -155,14 +209,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   _updateTime(int workerId, bool isInTime, TimeOfDay selectedTime) {
-    String timeString = '${selectedTime.hour}:${selectedTime.minute}';
+    String formatted = "${selectedTime.hour.toString().padLeft(2,'0')}:${selectedTime.minute.toString().padLeft(2,'0')}:00";
     if (isInTime) {
       setState(() {
-        _inTime[workerId] = timeString;
+        _inTime[workerId] = formatted;
       });
     } else {
       setState(() {
-        _outTime[workerId] = timeString;
+        _outTime[workerId] = formatted;
       });
     }
   }
@@ -228,7 +282,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   onPressed: () async {
-                    final summary = await attendanceProvider.getTodaySummary();
+                    // Get login status provider
+                    final loginStatusProvider = Provider.of<LoginStatusProvider>(context, listen: false);
+                    final userProvider = Provider.of<UserProvider>(context, listen: false);
+                    
+                    // Get today's login status data
+                    final todayLoginStatus = await loginStatusProvider.getTodayLoginStatus();
+                    
+                    // Get total workers from user provider
+                    final totalWorkers = userProvider.workers
+                        .where((user) => user.role == 'worker')
+                        .length;
+                    
+                    // Use login status data for accurate statistics
+                    final loggedInCount = todayLoginStatus.where((s) => s['is_logged_in'] == true).length;
+                    final absentCount = totalWorkers - loggedInCount;
+                    
+                    final summary = {
+                      'total': totalWorkers,
+                      'present': loggedInCount,
+                      'absent': absentCount > 0 ? absentCount : 0,
+                    };
+                    
                     Fluttertoast.showToast(
                       msg: 'Total: ${summary['total']}, Present: ${summary['present']}, Absent: ${summary['absent']}',
                       toastLength: Toast.LENGTH_LONG,

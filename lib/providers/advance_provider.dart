@@ -1,13 +1,11 @@
 import '../models/advance.dart';
 import '../services/advance_service.dart';
-import '../providers/hybrid_database_provider.dart';
 import '../services/schema_refresher.dart'; // Add this import
 import 'base_provider.dart';
 import '../utils/logger.dart';
 
 class AdvanceProvider extends BaseProvider {
   final AdvanceService _advanceService = AdvanceService();
-  final HybridDatabaseProvider _hybridProvider = HybridDatabaseProvider();
   final SchemaRefresher _schemaRefresher = SchemaRefresher(); // Add this
   
   List<Advance> _advances = [];
@@ -16,8 +14,9 @@ class AdvanceProvider extends BaseProvider {
   Future<void> loadAdvances() async {
     setState(ViewState.busy);
     try {
-      // Try to get advances from hybrid provider (will fall back to local if Firebase not available)
-      _advances = await _hybridProvider.getAdvances();
+      // Try to get advances from Supabase service
+      final advancesData = await _advanceService.all();
+      _advances = advancesData.map((data) => Advance.fromMap(data)).toList();
       Logger.info('Loaded ${_advances.length} advances from database');
     } catch (e) {
       Logger.error('Error loading advances: $e', e);
@@ -50,8 +49,9 @@ class AdvanceProvider extends BaseProvider {
   Future<void> loadAdvancesByWorkerId(int workerId) async {
     setState(ViewState.busy);
     try {
-      // Try to get advances from hybrid provider (will fall back to local if Firebase not available)
-      _advances = await _hybridProvider.getAdvancesByWorkerId(workerId);
+      // Try to get advances from Supabase service
+      final advancesData = await _advanceService.byWorker(workerId);
+      _advances = advancesData.map((data) => Advance.fromMap(data)).toList();
       Logger.info('Loaded ${_advances.length} advances for worker ID: $workerId');
     } catch (e) {
       Logger.error('Error loading advances by worker ID: $e', e);
@@ -146,9 +146,9 @@ class AdvanceProvider extends BaseProvider {
       
       // Provide more specific error messages
       if (e.toString().contains('no such column')) {
-        Logger.error('Database schema issue: Missing columns in advance table');
+        Logger.error('Database schema issue: Missing columns in advance table', null);
       } else if (e.toString().contains('Firebase')) {
-        Logger.warning('Firebase service error - falling back to local storage');
+        Logger.warn('Firebase service error - falling back to local storage');
       } else {
         // Try to fix schema errors
         await _schemaRefresher.tryFixExtendedSchemaError(e);
@@ -175,12 +175,12 @@ class AdvanceProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       if (advance.id == null) {
-        Logger.warning('Cannot update advance: ID is null');
+        Logger.warn('Cannot update advance: ID is null');
         setState(ViewState.idle);
         return false;
       }
       
-      Logger.debug('Updating advance ID: ${advance.id} with data: ${advance.toMap()}');
+      Logger.info('Updating advance ID: ${advance.id} with data: ${advance.toMap()}');
       await _advanceService.updateById(advance.id!, advance.toMap());
       Logger.info('Updated advance ID: ${advance.id}');
       
@@ -188,14 +188,14 @@ class AdvanceProvider extends BaseProvider {
       setState(ViewState.idle);
       return true;
     } catch (e, stackTrace) {
-      Logger.error('!!! ERROR UPDATING ADVANCE !!! Error type: ${e.runtimeType}, Error message: $e', e, stackTrace);
+      Logger.error('!!! ERROR UPDATING ADVANCE !!! Error type: ${e.runtimeType}, Error message: $e', e);
       setState(ViewState.idle);
       
       // Show a more detailed error message
       if (e.toString().contains('constraint')) {
-        Logger.warning('This is likely a database constraint error');
+        Logger.warn('This is likely a database constraint error');
       } else if (e.toString().contains('column')) {
-        Logger.warning('This is likely a database column error');
+        Logger.warn('This is likely a database column error');
       } else {
         // Try to fix schema errors
         await _schemaRefresher.tryFixSchemaError(e);
@@ -204,7 +204,7 @@ class AdvanceProvider extends BaseProvider {
         try {
           await Future.delayed(const Duration(seconds: 2));
           if (advance.id != null) {
-            Logger.debug('Retrying update of advance ID: ${advance.id} with data: ${advance.toMap()}');
+            Logger.info('Retrying update of advance ID: ${advance.id} with data: ${advance.toMap()}');
             await _advanceService.updateById(advance.id!, advance.toMap());
             Logger.info('Updated advance ID: ${advance.id}');
             

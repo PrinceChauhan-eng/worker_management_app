@@ -19,7 +19,9 @@ create table if not exists public.login_status (
   logout_city text,
   logout_state text,
   logout_pincode text,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  -- Add unique constraint for worker_id and date
+  unique(worker_id, date)
 );
 
 -- Create indexes for login_status table

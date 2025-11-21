@@ -62,6 +62,12 @@ class UsersService {
 
   Future<void> updateUser(int id, Map<String, dynamic> data) async {
     final payload = MapCase.toSnake(data);
+    // For GENERATED ALWAYS identity columns, never pass an ID value
+    // Remove ID for update operations
+    if (payload.containsKey('id')) {
+      payload.remove('id');
+    }
+    
     try {
       await supa.from('users').update(payload).eq('id', id);
     } catch (e) {

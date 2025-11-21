@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../../models/login_status.dart';
-import '../../models/user.dart';
-import '../../providers/login_status_provider.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../../providers/user_provider.dart';
+import '../../providers/login_status_provider.dart';
 import '../../providers/attendance_provider.dart';
+import '../../models/user.dart';
+import '../../models/login_status.dart';
 import '../login_status_screen.dart';
 import '../manage_advances_screen.dart';
 import '../advance_only_screen.dart';
@@ -14,6 +15,24 @@ import '../process_salary_screen.dart';
 import '../salary_slips_screen.dart';
 import '../reports_screen.dart';
 import '../settings_screen.dart';
+
+// Helper function to format time strings with proper timezone conversion
+String formatTimeString(String? timeStr, String dateStr) {
+  if (timeStr == null || timeStr.isEmpty) return 'N/A';
+  try {
+    // If backend stored full ISO like 2025-11-20T13:16:30Z, parse and convert to local
+    DateTime dt;
+    if (timeStr.contains('T')) {
+      dt = DateTime.parse(timeStr).toLocal();
+    } else {
+      // If you store just HH:mm:ss along with dateStr:
+      dt = DateTime.parse('$dateStr $timeStr').toLocal();
+    }
+    return DateFormat.Hms().format(dt);
+  } catch (e) {
+    return timeStr;
+  }
+}
 
 class DashboardHomeScreen extends StatelessWidget {
   const DashboardHomeScreen({super.key});
@@ -259,26 +278,22 @@ class DashboardHomeScreen extends StatelessWidget {
       context,
       listen: false,
     );
-    final attendanceProvider = Provider.of<AttendanceProvider>(
-      context,
-      listen: false,
-    );
     
-    // Get attendance statistics from provider (more accurate)
-    final attendanceStats = await attendanceProvider.getTodaySummary();
+    // Get today's login status data
+    final todayLoginStatus = await loginStatusProvider.getTodayLoginStatus();
     
     // Get total workers from user provider
     final totalWorkers = userProvider.workers
         .where((user) => user.role == 'worker')
         .length;
     
-    // Use attendance data for more accurate statistics
-    final presentCount = attendanceStats['present'] ?? 0;
-    final absentCount = totalWorkers - presentCount;
+    // Use login status data for accurate statistics
+    final loggedInCount = todayLoginStatus.where((s) => s['is_logged_in'] == true).length;
+    final absentCount = totalWorkers - loggedInCount;
     
     return {
       'total': totalWorkers,
-      'loggedIn': presentCount, // Use present count from attendance
+      'loggedIn': loggedInCount, // Use logged in count from login status
       'absent': absentCount > 0 ? absentCount.toInt() : 0,
     };
   }
@@ -448,9 +463,7 @@ class DashboardHomeScreen extends StatelessWidget {
       builder: (context, snapshot) {
         final worker = snapshot.data;
         final workerName = worker?.name ?? 'Unknown Worker';
-        final loginTime = (loginStatus.loginTime?.isNotEmpty ?? false)
-            ? DateFormat('hh:mm a').format(DateFormat('HH:mm:ss').parse(loginStatus.loginTime!))
-            : 'Unknown';
+        final loginTime = formatTimeString(loginStatus.loginTime, loginStatus.date);
 
         return Card(
           margin: const EdgeInsets.only(bottom: 8),

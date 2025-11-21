@@ -12,10 +12,13 @@ import '../../models/attendance.dart';
 import '../../models/notification.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../services/notifications_service.dart';
+import '../../services/attendance_service.dart';
 import '../../utils/logger.dart';
 
 class WorkerAttendanceScreen extends StatefulWidget {
-  const WorkerAttendanceScreen({super.key});
+  final User? preselectedWorker;
+
+  const WorkerAttendanceScreen({super.key, this.preselectedWorker});
 
   @override
   State<WorkerAttendanceScreen> createState() => _WorkerAttendanceScreenState();
@@ -24,6 +27,15 @@ class WorkerAttendanceScreen extends StatefulWidget {
 class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
   User? _selectedWorker;
   DateTime _selectedDate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    // Set the preselected worker if provided
+    if (widget.preselectedWorker != null) {
+      _selectedWorker = widget.preselectedWorker;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -229,6 +241,16 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
     }
   }
 
+  // Show error message
+  void _showError(String message) {
+    Fluttertoast.showToast(
+      msg: message,
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      backgroundColor: Colors.red,
+    );
+  }
+
   Future<void> _markAttendance(String status) async {
     if (_selectedWorker == null) return;
 
@@ -243,7 +265,15 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
         listen: false,
       );
       String dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-      String timeStr = DateFormat('HH:mm:ss').format(DateTime.now());
+      // Use normalized time method (Fix #7)
+      String timeStr = Logger.nowTime();
+
+      // Validate time fields - they should not be empty for present workers
+      if (status == 'present') {
+        // For present workers, we should have valid time values
+        // In this implementation, we're using current time for login
+        // For logout time, it can be empty initially and filled later
+      }
 
       // Check if there's already a record for this date in login status
       LoginStatus? existingLoginStatus = await loginStatusProvider
@@ -266,7 +296,7 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
         print('Creating present record for worker');
         // Update existing login status record or create new one
         loginStatus = LoginStatus(
-          id: existingLoginStatus?.id,
+          id: existingLoginStatus?.id, // Keep ID for updates
           workerId: _selectedWorker!.id!,
           date: dateStr,
           loginTime: existingLoginStatus?.loginTime ?? timeStr,
@@ -275,51 +305,78 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
         );
         
         // Update existing attendance record or create new one
+        // For present workers, ensure we have valid time values
+        String inTimeValue = existingAttendance?.inTime.isNotEmpty == true 
+            ? existingAttendance!.inTime 
+            : timeStr;
+        String outTimeValue = existingAttendance?.outTime.isNotEmpty == true 
+            ? existingAttendance!.outTime 
+            : ''; // Can be empty initially for present workers
+        
         attendance = Attendance(
-          id: existingAttendance?.id,
+          id: existingAttendance?.id, // Keep ID for updates
           workerId: _selectedWorker!.id!,
           date: dateStr,
-          inTime: existingAttendance?.inTime.isNotEmpty == true 
-              ? existingAttendance!.inTime 
-              : timeStr,
-          outTime: existingAttendance?.outTime.isNotEmpty == true 
-              ? existingAttendance!.outTime 
-              : '',
-          present: true,
+          inTime: inTimeValue,
+          outTime: outTimeValue,
+          present: true, // Fix present toggle (Fix #6)
         );
       } else {
         print('Creating absent record for worker');
-        // For absent, we create a record with login time but mark as not logged in
+        // For absent, we create a record with empty time values
         // Update existing login status record to absent
         loginStatus = LoginStatus(
-          id: existingLoginStatus?.id,
+          id: existingLoginStatus?.id, // Keep ID for updates
           workerId: _selectedWorker!.id!,
           date: dateStr,
-          loginTime: existingLoginStatus?.loginTime,
-          logoutTime: existingLoginStatus?.logoutTime,
+          loginTime: existingLoginStatus?.loginTime ?? '',
+          logoutTime: existingLoginStatus?.logoutTime ?? '',
           isLoggedIn: false,
         );
         
         // Update existing attendance record or create new one
         attendance = Attendance(
-          id: existingAttendance?.id,
+          id: existingAttendance?.id, // Keep ID for updates
           workerId: _selectedWorker!.id!,
           date: dateStr,
           inTime: '',
           outTime: '',
-          present: false,
+          present: false, // Fix present toggle (Fix #6)
         );
       }
 
       print('LoginStatus to save: isLoggedIn=${loginStatus.isLoggedIn}');
       print('Attendance to save: present=${attendance.present}');
+      
+      // Log the final payload for debugging
+      print('Final Attendance Payload: ${attendance.toMap()}');
+      print('Final LoginStatus Payload: ${loginStatus.toMap()}');
 
       // Save to database using the correct method for login status
       await loginStatusProvider.updateLoginStatus(loginStatus);
       
       // Save to database using the correct method for attendance
-      bool attendanceSuccess = await attendanceProvider.upsertAttendance(attendance);
+      bool attendanceSuccess;
+      if (attendance.id == null) {
+        attendanceSuccess = await attendanceProvider.addAttendance(attendance);
+      } else {
+        attendanceSuccess = await attendanceProvider.updateAttendance(attendance);
+      }
       print('Attendance save success: $attendanceSuccess');
+
+      // Sync login status with attendance
+      try {
+        final attendanceService = AttendanceService();
+        await attendanceService.syncLoginStatusWithAttendance(
+          workerId: _selectedWorker!.id!,
+          date: dateStr,
+          inTime: attendance.inTime.isNotEmpty ? attendance.inTime : null,
+          outTime: attendance.outTime.isNotEmpty ? attendance.outTime : null,
+          present: attendance.present ? 1 : 0,
+        );
+      } catch (e) {
+        Logger.error('Error syncing login status with attendance: $e', e);
+      }
 
       // Send notification to worker about attendance update
       await _sendAttendanceNotification(_selectedWorker!, status, dateStr);
@@ -333,6 +390,9 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
 
       // Refresh the UI
       setState(() {});
+      
+      // Refresh login status to ensure dashboard is updated
+      loginStatusProvider.refreshToday();
     } catch (e) {
       Logger.error('Error marking attendance: $e', e);
       Fluttertoast.showToast(

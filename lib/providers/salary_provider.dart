@@ -21,7 +21,7 @@ class SalaryProvider extends BaseProvider {
       setState(ViewState.idle);
       notifyListeners();
     } catch (e, stackTrace) {
-      Logger.error('Error loading salaries: $e', e, stackTrace);
+      Logger.error('Error loading salaries: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
       
@@ -34,7 +34,7 @@ class SalaryProvider extends BaseProvider {
         setState(ViewState.idle);
         notifyListeners();
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         notifyListeners();
         rethrow;
@@ -48,7 +48,7 @@ class SalaryProvider extends BaseProvider {
       final salaryData = await _salaryService.byWorkerAndMonth(workerId, month);
       return salaryData != null ? Salary.fromMap(salaryData) : null;
     } catch (e, stackTrace) {
-      Logger.error('Error getting salary by worker ID and month: $e', e, stackTrace);
+      Logger.error('Error getting salary by worker ID and month: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       
@@ -58,7 +58,7 @@ class SalaryProvider extends BaseProvider {
         final salaryData = await _salaryService.byWorkerAndMonth(workerId, month);
         return salaryData != null ? Salary.fromMap(salaryData) : null;
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         rethrow;
       }
     }
@@ -74,7 +74,7 @@ class SalaryProvider extends BaseProvider {
       setState(ViewState.idle);
       notifyListeners();
     } catch (e, stackTrace) {
-      Logger.error('Error loading salaries by worker ID: $e', e, stackTrace);
+      Logger.error('Error loading salaries by worker ID: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
       
@@ -87,7 +87,7 @@ class SalaryProvider extends BaseProvider {
         setState(ViewState.idle);
         notifyListeners();
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         notifyListeners();
         rethrow;
@@ -101,7 +101,7 @@ class SalaryProvider extends BaseProvider {
       final salariesData = await _salaryService.paid();
       return salariesData.map((data) => Salary.fromMap(data)).toList();
     } catch (e, stackTrace) {
-      Logger.error('Error getting paid salaries: $e', e, stackTrace);
+      Logger.error('Error getting paid salaries: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       
@@ -111,7 +111,7 @@ class SalaryProvider extends BaseProvider {
         final salariesData = await _salaryService.paid();
         return salariesData.map((data) => Salary.fromMap(data)).toList();
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         rethrow;
       }
     }
@@ -123,7 +123,7 @@ class SalaryProvider extends BaseProvider {
       final salariesData = await _salaryService.paidByMonth(month);
       return salariesData.map((data) => Salary.fromMap(data)).toList();
     } catch (e, stackTrace) {
-      Logger.error('Error getting paid salaries by month: $e', e, stackTrace);
+      Logger.error('Error getting paid salaries by month: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
       
@@ -133,7 +133,7 @@ class SalaryProvider extends BaseProvider {
         final salariesData = await _salaryService.paidByMonth(month);
         return salariesData.map((data) => Salary.fromMap(data)).toList();
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         rethrow;
       }
     }
@@ -145,7 +145,7 @@ class SalaryProvider extends BaseProvider {
       final salariesData = await _salaryService.paidByWorkerAndMonth(workerId, month);
       return salariesData.map((data) => Salary.fromMap(data)).toList();
     } catch (e, stackTrace) {
-      Logger.error('Error getting paid salaries by worker ID and month: $e', e, stackTrace);
+      Logger.error('Error getting paid salaries by worker ID and month: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       
@@ -155,7 +155,7 @@ class SalaryProvider extends BaseProvider {
         final salariesData = await _salaryService.paidByWorkerAndMonth(workerId, month);
         return salariesData.map((data) => Salary.fromMap(data)).toList();
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         rethrow;
       }
     }
@@ -165,24 +165,24 @@ class SalaryProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('=== ADDING SALARY ===');
-      Logger.debug('Salary data: ${salary.toMap()}');
+      Logger.info('Salary data: ${salary.toMap()}');
       
       // Log individual fields for debugging
-      Logger.debug('Salary fields:');
-      Logger.debug('  ID: ${salary.id}');
-      Logger.debug('  Worker ID: ${salary.workerId}');
-      Logger.debug('  Month: ${salary.month}');
-      Logger.debug('  Year: ${salary.year}');
-      Logger.debug('  Total Days: ${salary.totalDays}');
-      Logger.debug('  Present Days: ${salary.presentDays}');
-      Logger.debug('  Absent Days: ${salary.absentDays}');
-      Logger.debug('  Gross Salary: ${salary.grossSalary}');
-      Logger.debug('  Total Advance: ${salary.totalAdvance}');
-      Logger.debug('  Net Salary: ${salary.netSalary}');
-      Logger.debug('  Total Salary: ${salary.totalSalary}');
-      Logger.debug('  Paid: ${salary.paid}');
-      Logger.debug('  Paid Date: ${salary.paidDate}');
-      Logger.debug('  PDF URL: ${salary.pdfUrl}');
+      Logger.info('Salary fields:');
+      Logger.info('  ID: ${salary.id}');
+      Logger.info('  Worker ID: ${salary.workerId}');
+      Logger.info('  Month: ${salary.month}');
+      Logger.info('  Year: ${salary.year}');
+      Logger.info('  Total Days: ${salary.totalDays}');
+      Logger.info('  Present Days: ${salary.presentDays}');
+      Logger.info('  Absent Days: ${salary.absentDays}');
+      Logger.info('  Gross Salary: ${salary.grossSalary}');
+      Logger.info('  Total Advance: ${salary.totalAdvance}');
+      Logger.info('  Net Salary: ${salary.netSalary}');
+      Logger.info('  Total Salary: ${salary.totalSalary}');
+      Logger.info('  Paid: ${salary.paid}');
+      Logger.info('  Paid Date: ${salary.paidDate}');
+      Logger.info('  PDF URL: ${salary.pdfUrl}');
       
       // Validate salary object
       if (salary.workerId <= 0) {
@@ -205,7 +205,7 @@ class SalaryProvider extends BaseProvider {
       Logger.info('Salary added successfully');
       return true;
     } catch (e, stackTrace) {
-      Logger.error('!!! ERROR ADDING SALARY !!! Error type: ${e.runtimeType}, Error message: $e', e, stackTrace);
+      Logger.error('!!! ERROR ADDING SALARY !!! Error type: ${e.runtimeType}, Error message: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       
@@ -224,15 +224,15 @@ class SalaryProvider extends BaseProvider {
         Logger.info('Salary added successfully');
         return true;
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         // Show a more detailed error message
         if (e.toString().contains('UNIQUE constraint failed')) {
-          Logger.warning('This is a duplicate salary entry error');
+          Logger.warn('This is a duplicate salary entry error');
         } else if (e.toString().contains('constraint')) {
-          Logger.warning('This is likely a database constraint error');
+          Logger.warn('This is likely a database constraint error');
         } else if (e.toString().contains('column')) {
-          Logger.warning('This is likely a database column error');
+          Logger.warn('This is likely a database column error');
         }
         return false;
       }
@@ -243,7 +243,7 @@ class SalaryProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('Updating salary ID: ${salary.id}');
-      Logger.debug('Salary update data: ${salary.toMap()}');
+      Logger.info('Salary update data: ${salary.toMap()}');
       
       // Validate salary object
       if (salary.id == null) {
@@ -260,7 +260,7 @@ class SalaryProvider extends BaseProvider {
       Logger.info('Salary updated successfully');
       return true;
     } catch (e, stackTrace) {
-      Logger.error('!!! ERROR UPDATING SALARY !!! Error type: ${e.runtimeType}, Error message: $e', e, stackTrace);
+      Logger.error('!!! ERROR UPDATING SALARY !!! Error type: ${e.runtimeType}, Error message: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
       
@@ -279,14 +279,14 @@ class SalaryProvider extends BaseProvider {
           return false;
         }
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         
         // Show a more detailed error message
         if (e.toString().contains('constraint')) {
-          Logger.warning('This is likely a database constraint error');
+          Logger.warn('This is likely a database constraint error');
         } else if (e.toString().contains('column')) {
-          Logger.warning('This is likely a database column error');
+          Logger.warn('This is likely a database column error');
         }
         
         return false;
@@ -321,7 +321,7 @@ class SalaryProvider extends BaseProvider {
         notifyListeners();
       }
     } catch (e, stackTrace) {
-      Logger.error('!!! ERROR MARKING SALARY AS PAID !!! Error type: ${e.runtimeType}, Error message: $e', e, stackTrace);
+      Logger.error('!!! ERROR MARKING SALARY AS PAID !!! Error type: ${e.runtimeType}, Error message: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       
@@ -351,7 +351,7 @@ class SalaryProvider extends BaseProvider {
           notifyListeners();
         }
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         rethrow;
       }
     }
@@ -366,7 +366,7 @@ class SalaryProvider extends BaseProvider {
       setState(ViewState.idle);
       return true;
     } catch (e, stackTrace) {
-      Logger.error('Error deleting salary: $e', e, stackTrace);
+      Logger.error('Error deleting salary: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
       
@@ -378,7 +378,7 @@ class SalaryProvider extends BaseProvider {
         setState(ViewState.idle);
         return true;
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         return false;
       }

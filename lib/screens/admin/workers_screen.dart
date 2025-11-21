@@ -5,6 +5,7 @@ import '../../providers/user_provider.dart';
 import '../../models/user.dart';
 import '../add_worker_screen.dart';
 import '../../utils/logger.dart';
+import './worker_attendance_screen.dart';
 
 class WorkersScreen extends StatefulWidget {
   const WorkersScreen({super.key});
@@ -345,6 +346,22 @@ class _WorkersScreenState extends State<WorkersScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 10),
+                // Add Attendance Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context); // Close the bottom sheet
+                      _markAttendance(context, worker);
+                    },
+                    icon: const Icon(Icons.check_circle, size: 18),
+                    label: const Text('Mark Attendance'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4CAF50),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -442,6 +459,15 @@ class _WorkersScreenState extends State<WorkersScreen> {
           ],
         );
       },
+    );
+  }
+
+  void _markAttendance(BuildContext context, User worker) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WorkerAttendanceScreen(preselectedWorker: worker),
+      ),
     );
   }
 }

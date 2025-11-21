@@ -31,7 +31,7 @@ class DatabaseUpdater {
       
       Logger.info('All database migrations completed successfully');
     } catch (e, stackTrace) {
-      Logger.error('Error during database migrations: $e', e, stackTrace);
+      Logger.error('Error during database migrations: $e', e);
       rethrow;
     }
   }
@@ -156,7 +156,9 @@ class DatabaseUpdater {
           logout_longitude double precision,
           logout_address text,
           created_at timestamptz default now(),
-          updated_at timestamptz default now()
+          updated_at timestamptz default now(),
+          -- Add unique constraint for worker_id and date
+          constraint attendance_worker_date_ux unique(worker_id, date)
         );
 
         -- Add location columns if they don't exist
@@ -227,7 +229,9 @@ class DatabaseUpdater {
           logout_city text,
           logout_state text,
           logout_pincode text,
-          created_at timestamptz default now()
+          created_at timestamptz default now(),
+          -- Add unique constraint for worker_id and date
+          constraint login_status_worker_date_ux unique(worker_id, date)
         );
 
         alter table public.login_status

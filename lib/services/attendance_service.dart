@@ -1,4 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/map_case.dart';
 import 'supabase_client.dart';
 import '../utils/logger.dart';
@@ -31,10 +30,23 @@ class AttendanceService {
       if (latitude != null) payload['login_latitude'] = latitude;
       if (longitude != null) payload['login_longitude'] = longitude;
 
-      await supa.from('attendance').upsert(payload, onConflict: 'worker_id,date');
-      Logger.debug("✅ Login marked for worker $workerId at $inTime");
+      await supa.from('attendance').update(payload).eq('worker_id', workerId).eq('date', today);
+      Logger.info("✅ Login marked for worker $workerId at $inTime");
+      
+      // Sync login status with attendance
+      try {
+        await syncLoginStatusWithAttendance(
+          workerId: workerId,
+          date: today,
+          inTime: inTime,
+          outTime: null,
+          present: 1,
+        );
+      } catch (e) {
+        Logger.error('Error syncing login status with attendance: $e', e);
+      }
     } catch (e) {
-      Logger.debug("❌ Failed to mark login: $e");
+      Logger.info("❌ Failed to mark login: $e");
       // Try to fix schema errors and retry
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       await Future.delayed(const Duration(seconds: 2));
@@ -52,8 +64,21 @@ class AttendanceService {
       if (latitude != null) payload['login_latitude'] = latitude;
       if (longitude != null) payload['login_longitude'] = longitude;
 
-      await supa.from('attendance').upsert(payload, onConflict: 'worker_id,date');
-      Logger.debug("✅ Login marked for worker $workerId at $inTime (retry)");
+      await supa.from('attendance').update(payload).eq('worker_id', workerId).eq('date', today);
+      Logger.info("✅ Login marked for worker $workerId at $inTime (retry)");
+      
+      // Sync login status with attendance
+      try {
+        await syncLoginStatusWithAttendance(
+          workerId: workerId,
+          date: today,
+          inTime: inTime,
+          outTime: null,
+          present: 1,
+        );
+      } catch (e) {
+        Logger.error('Error syncing login status with attendance: $e', e);
+      }
     }
   }
 
@@ -80,9 +105,22 @@ class AttendanceService {
       if (longitude != null) payload['logout_longitude'] = longitude;
 
       await supa.from('attendance').update(payload).eq('worker_id', workerId).eq('date', today);
-      Logger.debug("✅ Logout marked for worker $workerId at $outTime");
+      Logger.info("✅ Logout marked for worker $workerId at $outTime");
+      
+      // Sync login status with attendance
+      try {
+        await syncLoginStatusWithAttendance(
+          workerId: workerId,
+          date: today,
+          inTime: null,
+          outTime: outTime,
+          present: 0,
+        );
+      } catch (e) {
+        Logger.error('Error syncing login status with attendance: $e', e);
+      }
     } catch (e) {
-      Logger.debug("❌ Failed to mark logout: $e");
+      Logger.info("❌ Failed to mark logout: $e");
       // Try to fix schema errors and retry
       await _schemaRefresher.tryFixSchemaError(e);
       await Future.delayed(const Duration(seconds: 2));
@@ -100,7 +138,20 @@ class AttendanceService {
       if (longitude != null) payload['logout_longitude'] = longitude;
 
       await supa.from('attendance').update(payload).eq('worker_id', workerId).eq('date', today);
-      Logger.debug("✅ Logout marked for worker $workerId at $outTime (retry)");
+      Logger.info("✅ Logout marked for worker $workerId at $outTime (retry)");
+      
+      // Sync login status with attendance
+      try {
+        await syncLoginStatusWithAttendance(
+          workerId: workerId,
+          date: today,
+          inTime: null,
+          outTime: outTime,
+          present: 0,
+        );
+      } catch (e) {
+        Logger.error('Error syncing login status with attendance: $e', e);
+      }
     }
   }
 
@@ -109,10 +160,11 @@ class AttendanceService {
     final today = DateTime.now().toIso8601String().substring(0, 10);
     
     try {
-      final data = await supa.from('attendance').select().eq('date', today);
+      // Get today's login status data instead of attendance data
+      final data = await supa.from('login_status').select().eq('date', today);
       
       final total = data.length;
-      final present = data.where((a) => a['present'] == true).length;
+      final present = data.where((a) => a['is_logged_in'] == true).length;
       final absent = total - present;
 
       return {
@@ -121,16 +173,16 @@ class AttendanceService {
         'absent': absent,
       };
     } catch (e) {
-      Logger.debug("❌ Failed to get today's summary: $e");
+      Logger.info("❌ Failed to get today's summary: $e");
       // Try to fix schema errors and retry
       await _schemaRefresher.tryFixSchemaError(e);
       await Future.delayed(const Duration(seconds: 2));
       
       // Retry the operation
-      final data = await supa.from('attendance').select().eq('date', today);
+      final data = await supa.from('login_status').select().eq('date', today);
       
       final total = data.length;
-      final present = data.where((a) => a['present'] == true).length;
+      final present = data.where((a) => a['is_logged_in'] == true).length;
       final absent = total - present;
 
       return {
@@ -147,9 +199,9 @@ class AttendanceService {
       await supa.rpc('exec_sql', params: {
         'query': 'select mark_absent_workers();'
       });
-      Logger.debug("✅ Absentees marked successfully");
+      Logger.info("✅ Absentees marked successfully");
     } catch (e) {
-      Logger.debug("⚠️ Failed to auto-mark absentees: $e");
+      Logger.info("⚠️ Failed to auto-mark absentees: $e");
       // Try to fix schema errors and retry
       await _schemaRefresher.tryFixSchemaError(e);
       await Future.delayed(const Duration(seconds: 2));
@@ -158,7 +210,7 @@ class AttendanceService {
       await supa.rpc('exec_sql', params: {
         'query': 'select mark_absent_workers();'
       });
-      Logger.debug("✅ Absentees marked successfully (retry)");
+      Logger.info("✅ Absentees marked successfully (retry)");
     }
   }
 
@@ -170,8 +222,26 @@ class AttendanceService {
     }
     
     try {
-      Logger.debug('AttendanceService.insert - payload: $payload');
+      Logger.info('AttendanceService.insert - payload: $payload');
       final res = await supa.from('attendance').insert(payload).select('id').single();
+      
+      // Extract workerId and date for sync function
+      final workerId = payload['worker_id'] as int;
+      final date = payload['date'] as String;
+      
+      // Sync login status with attendance
+      try {
+        await syncLoginStatusWithAttendance(
+          workerId: workerId,
+          date: date,
+          inTime: payload['in_time'] as String?,
+          outTime: payload['out_time'] as String?,
+          present: (payload['present'] as bool?) == true ? 1 : 0,
+        );
+      } catch (e) {
+        Logger.error('Error syncing login status with attendance: $e', e);
+      }
+      
       return (res['id'] as int);
     } catch (e) {
       // Try to fix schema errors and retry
@@ -179,8 +249,26 @@ class AttendanceService {
       await Future.delayed(const Duration(seconds: 2));
       
       // Retry the operation
-      Logger.debug('AttendanceService.insert - retrying after schema refresh');
+      Logger.info('AttendanceService.insert - retrying after schema refresh');
       final res = await supa.from('attendance').insert(payload).select('id').single();
+      
+      // Extract workerId and date for sync function
+      final workerId = payload['worker_id'] as int;
+      final date = payload['date'] as String;
+      
+      // Sync login status with attendance
+      try {
+        await syncLoginStatusWithAttendance(
+          workerId: workerId,
+          date: date,
+          inTime: payload['in_time'] as String?,
+          outTime: payload['out_time'] as String?,
+          present: (payload['present'] as bool?) == true ? 1 : 0,
+        );
+      } catch (e) {
+        Logger.error('Error syncing login status with attendance: $e', e);
+      }
+      
       return (res['id'] as int);
     }
   }
@@ -221,38 +309,123 @@ class AttendanceService {
     }
   }
 
-  /// Insert or update attendance (unique worker_id + date)
+  /// Insert or update attendance
   Future<int> upsertAttendance(Map<String, dynamic> attendance) async {
     final payload = MapCase.toSnake(attendance);
-
-    // Only remove ID if it's null for insert operations
-    if (payload['id'] == null) {
-      payload.remove('id');
-    }
+    
+    // Remove ID for GENERATED ALWAYS identity columns
+    payload.remove('id');
+    
+    final workerId = payload['worker_id'] as int;
+    final date = payload['date'] as String;
 
     try {
-      Logger.debug('AttendanceService.upsertAttendance - payload: $payload');
-      final res = await supa
+      // First check if a record already exists for this worker_id and date
+      final existingRecord = await supa
           .from('attendance')
-          .upsert(payload, onConflict: 'worker_id,date')
           .select('id')
-          .single();
+          .eq('worker_id', workerId)
+          .eq('date', date)
+          .maybeSingle();
 
-      return res['id'] as int;
-    } catch (e) {
-      // Try to fix schema errors and retry
+      if (existingRecord != null) {
+        // Update existing record
+        final id = existingRecord['id'] as int;
+        Logger.info('AttendanceService.upsertAttendance - updating existing record with id: $id, payload: $payload');
+        await supa.from('attendance').update(payload).eq('id', id);
+        
+        // Sync login status with attendance
+        try {
+          await syncLoginStatusWithAttendance(
+            workerId: workerId,
+            date: date,
+            inTime: payload['in_time'] as String?,
+            outTime: payload['out_time'] as String?,
+            present: (payload['present'] as bool?) == true ? 1 : 0,
+          );
+        } catch (e) {
+          Logger.error('Error syncing login status with attendance: $e', e);
+        }
+        
+        return id;
+      } else {
+        // Insert new record
+        Logger.info('AttendanceService.upsertAttendance - inserting new record with payload: $payload');
+        final res = await supa.from('attendance').insert(payload).select('id').single();
+        
+        // Sync login status with attendance
+        try {
+          await syncLoginStatusWithAttendance(
+            workerId: workerId,
+            date: date,
+            inTime: payload['in_time'] as String?,
+            outTime: payload['out_time'] as String?,
+            present: (payload['present'] as bool?) == true ? 1 : 0,
+          );
+        } catch (e) {
+          Logger.error('Error syncing login status with attendance: $e', e);
+        }
+        
+        return res['id'] as int;
+      }
+    } catch (e, st) {
+      // Log the full error and stacktrace so we can see why supabase rejected the payload
+      Logger.error('AttendanceService.upsertAttendance error: $e\n$st', e);
+      // Attempt schema refresh if it's a schema/cache type error
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       await Future.delayed(const Duration(seconds: 2));
-      
-      // Retry the operation
-      Logger.debug('AttendanceService.upsertAttendance - retrying after schema refresh');
-      final res = await supa
-          .from('attendance')
-          .upsert(payload, onConflict: 'worker_id,date')
-          .select('id')
-          .single();
 
-      return res['id'] as int;
+      // Retry the same logic
+      Logger.info('AttendanceService.upsertAttendance - retrying after schema refresh - payload: $payload');
+      
+      // First check if a record already exists for this worker_id and date
+      final existingRecord = await supa
+          .from('attendance')
+          .select('id')
+          .eq('worker_id', workerId)
+          .eq('date', date)
+          .maybeSingle();
+
+      if (existingRecord != null) {
+        // Update existing record
+        final id = existingRecord['id'] as int;
+        Logger.info('AttendanceService.upsertAttendance - retrying update existing record with id: $id, payload: $payload');
+        await supa.from('attendance').update(payload).eq('id', id);
+        
+        // Sync login status with attendance
+        try {
+          await syncLoginStatusWithAttendance(
+            workerId: workerId,
+            date: date,
+            inTime: payload['in_time'] as String?,
+            outTime: payload['out_time'] as String?,
+            present: (payload['present'] as bool?) == true ? 1 : 0,
+          );
+        } catch (e) {
+          Logger.error('Error syncing login status with attendance: $e', e);
+        }
+        
+        return id;
+      } else {
+        // Insert new record
+        Logger.info('AttendanceService.upsertAttendance - retrying insert new record with payload: $payload');
+        final res = await supa.from('attendance').insert(payload).select('id').single();
+        
+        // Sync login status with attendance
+        try {
+          await syncLoginStatusWithAttendance(
+            workerId: workerId,
+            date: date,
+            inTime: payload['in_time'] as String?,
+            outTime: payload['out_time'] as String?,
+            present: (payload['present'] as bool?) == true ? 1 : 0,
+          );
+        } catch (e) {
+          Logger.error('Error syncing login status with attendance: $e', e);
+        }
+        
+        return res['id'] as int;
+      }
     }
   }
 
@@ -260,18 +433,44 @@ class AttendanceService {
     // Remove id from payload for update operations
     final payload = MapCase.toSnake(data);
     if (payload.containsKey('id')) {
-      Logger.debug('AttendanceService.updateById - removing id field from payload');
+      Logger.info('AttendanceService.updateById - removing id field from payload');
       payload.remove('id');
     }
     
     try {
-      Logger.debug('AttendanceService.updateById - payload: $payload, id: $id');
+      Logger.info('AttendanceService.updateById - payload: $payload, id: $id');
       await supa.from('attendance').update(payload).eq('id', id);
+      
+      // Sync login status with attendance
+      try {
+        await syncLoginStatusWithAttendance(
+          workerId: payload['worker_id'] as int,
+          date: payload['date'] as String,
+          inTime: payload['in_time'] as String?,
+          outTime: payload['out_time'] as String?,
+          present: (payload['present'] as bool?) == true ? 1 : 0,
+        );
+      } catch (e) {
+        Logger.error('Error syncing login status with attendance: $e', e);
+      }
     } catch (e) {
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       await Future.delayed(const Duration(seconds: 2));
-      Logger.debug('AttendanceService.updateById - retrying after schema refresh');
+      Logger.info('AttendanceService.updateById - retrying after schema refresh');
       await supa.from('attendance').update(payload).eq('id', id);
+      
+      // Sync login status with attendance
+      try {
+        await syncLoginStatusWithAttendance(
+          workerId: payload['worker_id'] as int,
+          date: payload['date'] as String,
+          inTime: payload['in_time'] as String?,
+          outTime: payload['out_time'] as String?,
+          present: (payload['present'] as bool?) == true ? 1 : 0,
+        );
+      } catch (e) {
+        Logger.error('Error syncing login status with attendance: $e', e);
+      }
     }
   }
 
@@ -282,6 +481,118 @@ class AttendanceService {
       await _schemaRefresher.tryFixSchemaError(e);
       await Future.delayed(const Duration(seconds: 2));
       await supa.from('attendance').delete().eq('id', id);
+    }
+  }
+
+  /// Sync login status with attendance records
+  /// This ensures that when admin marks attendance, the login status is also updated accordingly
+  Future<void> syncLoginStatusWithAttendance({
+    required int workerId,
+    required String date,
+    required String? inTime,
+    required String? outTime,
+    required int present,
+  }) async {
+    try {
+      // 1. Check if login_status exists
+      final existing = await supa
+          .from('login_status')
+          .select()
+          .eq('worker_id', workerId)
+          .eq('date', date)
+          .maybeSingle();
+
+      if (present == 1) {
+        // Admin marked present → LOGIN worker
+        if (existing == null) {
+          await supa.from('login_status').insert({
+            'worker_id': workerId,
+            'date': date,
+            'login_time': inTime,
+            'is_logged_in': true,
+          });
+        } else {
+          await supa
+              .from('login_status')
+              .update({
+                'login_time': inTime,
+                'is_logged_in': true,
+              })
+              .eq('id', existing['id']);
+        }
+      } else {
+        // Admin marked absent → LOGOUT worker
+        if (existing == null) {
+          await supa.from('login_status').insert({
+            'worker_id': workerId,
+            'date': date,
+            'logout_time': outTime,
+            'is_logged_in': false,
+          });
+        } else {
+          await supa
+              .from('login_status')
+              .update({
+                'logout_time': outTime,
+                'is_logged_in': false,
+              })
+              .eq('id', existing['id']);
+        }
+      }
+      Logger.info('Successfully synced login status with attendance for worker $workerId on $date');
+    } catch (e) {
+      Logger.error('Error syncing login status with attendance: $e', e);
+      // Try to fix schema errors and retry
+      await _schemaRefresher.tryFixSchemaError(e);
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // Retry the operation
+      // 1. Check if login_status exists
+      final existing = await supa
+          .from('login_status')
+          .select()
+          .eq('worker_id', workerId)
+          .eq('date', date)
+          .maybeSingle();
+
+      if (present == 1) {
+        // Admin marked present → LOGIN worker
+        if (existing == null) {
+          await supa.from('login_status').insert({
+            'worker_id': workerId,
+            'date': date,
+            'login_time': inTime,
+            'is_logged_in': true,
+          });
+        } else {
+          await supa
+              .from('login_status')
+              .update({
+                'login_time': inTime,
+                'is_logged_in': true,
+              })
+              .eq('id', existing['id']);
+        }
+      } else {
+        // Admin marked absent → LOGOUT worker
+        if (existing == null) {
+          await supa.from('login_status').insert({
+            'worker_id': workerId,
+            'date': date,
+            'logout_time': outTime,
+            'is_logged_in': false,
+          });
+        } else {
+          await supa
+              .from('login_status')
+              .update({
+                'logout_time': outTime,
+                'is_logged_in': false,
+              })
+              .eq('id', existing['id']);
+        }
+      }
+      Logger.info('Successfully retried syncing login status with attendance for worker $workerId on $date');
     }
   }
 }

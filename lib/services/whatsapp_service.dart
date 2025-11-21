@@ -153,7 +153,7 @@ If you didn't request this, please ignore this message.
         
         return true;
       } else {
-        Logger.warning('Could not launch WhatsApp');
+        Logger.warn('Could not launch WhatsApp');
         
         // Show OTP in dialog even if WhatsApp can't be launched
         if (context.mounted) {
@@ -214,13 +214,13 @@ If you didn't request this, please ignore this message.
     
     // Check if OTP exists
     if (!_otpStore.containsKey(cleanPhone)) {
-      Logger.warning('No OTP found for $cleanPhone');
+      Logger.warn('No OTP found for $cleanPhone');
       return false;
     }
     
     // Check if OTP is expired
     if (_otpExpiry[cleanPhone]!.isBefore(DateTime.now())) {
-      Logger.warning('OTP expired for $cleanPhone');
+      Logger.warn('OTP expired for $cleanPhone');
       _otpStore.remove(cleanPhone);
       _otpExpiry.remove(cleanPhone);
       return false;
@@ -235,7 +235,7 @@ If you didn't request this, please ignore this message.
       _otpStore.remove(cleanPhone);
       _otpExpiry.remove(cleanPhone);
     } else {
-      Logger.warning('Invalid OTP for $cleanPhone. Expected: ${_otpStore[cleanPhone]}, Got: $enteredOTP');
+      Logger.warn('Invalid OTP for $cleanPhone. Expected: ${_otpStore[cleanPhone]}, Got: $enteredOTP');
     }
     
     return isValid;

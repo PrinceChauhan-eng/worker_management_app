@@ -9,6 +9,24 @@ import '../models/login_status.dart';
 import '../widgets/custom_app_bar.dart';
 import 'edit_attendance_screen.dart';
 
+// Helper function to format time strings with proper timezone conversion
+String formatTimeString(String? timeStr, String dateStr) {
+  if (timeStr == null || timeStr.isEmpty) return 'N/A';
+  try {
+    // If backend stored full ISO like 2025-11-20T13:16:30Z, parse and convert to local
+    DateTime dt;
+    if (timeStr.contains('T')) {
+      dt = DateTime.parse(timeStr).toLocal();
+    } else {
+      // If you store just HH:mm:ss along with dateStr:
+      dt = DateTime.parse('$dateStr $timeStr').toLocal();
+    }
+    return DateFormat.Hms().format(dt);
+  } catch (e) {
+    return timeStr;
+  }
+}
+
 class LoginStatusScreen extends StatefulWidget {
   const LoginStatusScreen({super.key});
 
@@ -386,7 +404,7 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                   icon: Icons.login,
                   label: 'Login',
                   time: status.loginTime ?? '--:--',
-                  // Removed address and distance since we're removing location features
+                  date: status.date,
                   color: Colors.green,
                 ),
                 if (hasLoggedOut) ...[
@@ -398,7 +416,7 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                     icon: Icons.logout,
                     label: 'Logout',
                     time: status.logoutTime ?? '--:--',
-                    // Removed address and distance since we're removing location features
+                    date: status.date,
                     color: Colors.red,
                   ),
                 ],
@@ -446,9 +464,12 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
     required IconData icon,
     required String label,
     required String time,
-    // Removed address and distance parameters since we're removing location features
+    required String date,
     required Color color,
   }) {
+    // Format the time with timezone conversion
+    final formattedTime = formatTimeString(time, date);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -474,7 +495,7 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                   ),
                 ),
                 Text(
-                  time,
+                  formattedTime,
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -483,10 +504,8 @@ class _LoginStatusScreenState extends State<LoginStatusScreen> {
                 ),
               ],
             ),
-            // Removed distance display since we're removing location features
           ],
         ),
-        // Removed address display since we're removing location features
       ],
     );
   }

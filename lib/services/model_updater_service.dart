@@ -37,7 +37,7 @@ class ModelUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ User model updated');
     } else {
-      Logger.warning('User model file not found: $filePath');
+      Logger.warn('User model file not found: $filePath');
     }
   }
 
@@ -52,7 +52,7 @@ class ModelUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ Attendance model updated');
     } else {
-      Logger.warning('Attendance model file not found: $filePath');
+      Logger.warn('Attendance model file not found: $filePath');
     }
   }
 
@@ -67,7 +67,7 @@ class ModelUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ LoginStatus model updated');
     } else {
-      Logger.warning('LoginStatus model file not found: $filePath');
+      Logger.warn('LoginStatus model file not found: $filePath');
     }
   }
 
@@ -82,7 +82,7 @@ class ModelUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ Advance model updated');
     } else {
-      Logger.warning('Advance model file not found: $filePath');
+      Logger.warn('Advance model file not found: $filePath');
     }
   }
 
@@ -97,7 +97,7 @@ class ModelUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ Salary model updated');
     } else {
-      Logger.warning('Salary model file not found: $filePath');
+      Logger.warn('Salary model file not found: $filePath');
     }
   }
 
@@ -112,7 +112,7 @@ class ModelUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ Notification model updated');
     } else {
-      Logger.warning('Notification model file not found: $filePath');
+      Logger.warn('Notification model file not found: $filePath');
     }
   }
 

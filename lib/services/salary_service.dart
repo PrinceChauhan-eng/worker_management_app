@@ -15,7 +15,7 @@ class SalaryService {
     }
     
     try {
-      Logger.debug('SalaryService.insert - payload: $payload');
+      Logger.info('SalaryService.insert - payload: $payload');
       final res = await supa.from('salary').insert(payload).select('id').single();
       return (res['id'] as int);
     } catch (e) {
@@ -24,7 +24,7 @@ class SalaryService {
       await Future.delayed(const Duration(seconds: 2));
       
       // Retry the operation
-      Logger.debug('SalaryService.insert - retrying after schema refresh');
+      Logger.info('SalaryService.insert - retrying after schema refresh');
       final res = await supa.from('salary').insert(payload).select('id').single();
       return (res['id'] as int);
     }
@@ -112,17 +112,17 @@ class SalaryService {
     // Remove id from payload for update operations
     final payload = MapCase.toSnake(data);
     if (payload.containsKey('id')) {
-      Logger.debug('SalaryService.updateById - removing id field from payload');
+      Logger.info('SalaryService.updateById - removing id field from payload');
       payload.remove('id');
     }
     
     try {
-      Logger.debug('SalaryService.updateById - payload: $payload, id: $id');
+      Logger.info('SalaryService.updateById - payload: $payload, id: $id');
       await supa.from('salary').update(payload).eq('id', id);
     } catch (e) {
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       await Future.delayed(const Duration(seconds: 2));
-      Logger.debug('SalaryService.updateById - retrying after schema refresh');
+      Logger.info('SalaryService.updateById - retrying after schema refresh');
       await supa.from('salary').update(payload).eq('id', id);
     }
   }

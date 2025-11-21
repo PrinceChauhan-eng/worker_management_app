@@ -37,7 +37,7 @@ class ServiceUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ User service updated');
     } else {
-      Logger.warning('User service file not found: $filePath');
+      Logger.warn('User service file not found: $filePath');
     }
   }
 
@@ -52,7 +52,7 @@ class ServiceUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ Attendance service updated');
     } else {
-      Logger.warning('Attendance service file not found: $filePath');
+      Logger.warn('Attendance service file not found: $filePath');
     }
   }
 
@@ -67,7 +67,7 @@ class ServiceUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ Login service updated');
     } else {
-      Logger.warning('Login service file not found: $filePath');
+      Logger.warn('Login service file not found: $filePath');
     }
   }
 
@@ -82,7 +82,7 @@ class ServiceUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ Advance service updated');
     } else {
-      Logger.warning('Advance service file not found: $filePath');
+      Logger.warn('Advance service file not found: $filePath');
     }
   }
 
@@ -97,7 +97,7 @@ class ServiceUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ Salary service updated');
     } else {
-      Logger.warning('Salary service file not found: $filePath');
+      Logger.warn('Salary service file not found: $filePath');
     }
   }
 
@@ -112,7 +112,7 @@ class ServiceUpdaterService {
       await file.writeAsString(updatedContent);
       Logger.info('✅ Notification service updated');
     } else {
-      Logger.warning('Notification service file not found: $filePath');
+      Logger.warn('Notification service file not found: $filePath');
     }
   }
 

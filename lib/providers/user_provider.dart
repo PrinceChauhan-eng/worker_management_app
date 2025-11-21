@@ -12,7 +12,7 @@ class UserProvider extends BaseProvider {
   final SchemaRefresher _schemaRefresher = SchemaRefresher(); // Add this
 
   UserProvider() {
-    Logger.debug('UserProvider created');
+    Logger.info('UserProvider created');
   }
 
   List<User> _workers = [];
@@ -31,13 +31,13 @@ class UserProvider extends BaseProvider {
 
       // Log each worker for debugging
       for (var worker in _workers) {
-        Logger.debug('Worker loaded: ID=${worker.id}, Name=${worker.name}, Phone=${worker.phone}, Role=${worker.role}');
+        Logger.info('Worker loaded: ID=${worker.id}, Name=${worker.name}, Phone=${worker.phone}, Role=${worker.role}');
       }
 
       setState(ViewState.idle);
       notifyListeners();
     } catch (e, stackTrace) {
-      Logger.error('Error loading workers: $e', e, stackTrace);
+      Logger.error('Error loading workers: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
       
@@ -50,13 +50,13 @@ class UserProvider extends BaseProvider {
         
         // Log each worker for debugging
         for (var worker in _workers) {
-          Logger.debug('Worker loaded: ID=${worker.id}, Name=${worker.name}, Phone=${worker.phone}, Role=${worker.role}');
+          Logger.info('Worker loaded: ID=${worker.id}, Name=${worker.name}, Phone=${worker.phone}, Role=${worker.role}');
         }
         
         setState(ViewState.idle);
         notifyListeners();
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         notifyListeners();
       }
@@ -73,7 +73,7 @@ class UserProvider extends BaseProvider {
       Logger.info('User added successfully: ${user.name}');
       return true;
     } catch (e, stackTrace) {
-      Logger.error('Error adding user: $e', e, stackTrace);
+      Logger.error('Error adding user: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       
@@ -86,7 +86,7 @@ class UserProvider extends BaseProvider {
         Logger.info('User added successfully: ${user.name}');
         return true;
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         return false;
       }
@@ -97,8 +97,8 @@ class UserProvider extends BaseProvider {
     setState(ViewState.busy);
     try {
       Logger.info('Updating user: ${user.name} (ID: ${user.id})');
-      Logger.debug('Profile photo: ${user.profilePhoto}');
-      Logger.debug('Email: ${user.email}');
+      Logger.info('Profile photo: ${user.profilePhoto}');
+      Logger.info('Email: ${user.email}');
       await _usersService.updateUser(user.id!, user.toMap());
 
       // Update current user if this is the logged-in user
@@ -113,7 +113,7 @@ class UserProvider extends BaseProvider {
       Logger.info('User update completed successfully');
       return true;
     } catch (e, stackTrace) {
-      Logger.error('Error updating user: $e', e, stackTrace);
+      Logger.error('Error updating user: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       
@@ -134,7 +134,7 @@ class UserProvider extends BaseProvider {
         Logger.info('User update completed successfully');
         return true;
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         notifyListeners();
         return false;
@@ -151,7 +151,7 @@ class UserProvider extends BaseProvider {
       setState(ViewState.idle);
       return true;
     } catch (e, stackTrace) {
-      Logger.error('Error deleting user: $e', e, stackTrace);
+      Logger.error('Error deleting user: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
       
@@ -163,7 +163,7 @@ class UserProvider extends BaseProvider {
         setState(ViewState.idle);
         return true;
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         return false;
       }
@@ -177,7 +177,7 @@ class UserProvider extends BaseProvider {
       // First, find the user by phone
       final userData = await _usersService.getUserByPhone(phone);
       if (userData == null) {
-        Logger.warning('Authentication failed: User not found with phone: $phone');
+        Logger.warn('Authentication failed: User not found with phone: $phone');
         setState(ViewState.idle);
         notifyListeners();
         return null;
@@ -193,7 +193,7 @@ class UserProvider extends BaseProvider {
       notifyListeners();
       return _currentUser;
     } catch (e, stackTrace) {
-      Logger.error('Error authenticating user: $e', e, stackTrace);
+      Logger.error('Error authenticating user: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
       
@@ -203,7 +203,7 @@ class UserProvider extends BaseProvider {
         // First, find the user by phone
         final userData = await _usersService.getUserByPhone(phone);
         if (userData == null) {
-          Logger.warning('Authentication failed: User not found with phone: $phone');
+          Logger.warn('Authentication failed: User not found with phone: $phone');
           setState(ViewState.idle);
           notifyListeners();
           return null;
@@ -219,7 +219,7 @@ class UserProvider extends BaseProvider {
         notifyListeners();
         return _currentUser;
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         return null;
       }
@@ -228,7 +228,7 @@ class UserProvider extends BaseProvider {
 
   void setCurrentUser(User user) {
     Logger.info('Setting current user: ${user.name} (ID: ${user.id})');
-    Logger.debug('User details: Phone=${user.phone}, Role=${user.role}, Email=${user.email}, Verified=${user.emailVerified}');
+    Logger.info('User details: Phone=${user.phone}, Role=${user.role}, Email=${user.email}, Verified=${user.emailVerified}');
     _currentUser = user;
     // Use addPostFrameCallback to avoid calling notifyListeners during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -248,7 +248,7 @@ class UserProvider extends BaseProvider {
       final userData = await _usersService.getUser(id);
       return userData != null ? User.fromMap(userData) : null;
     } catch (e, stackTrace) {
-      Logger.error('Error getting user by ID: $e', e, stackTrace);
+      Logger.error('Error getting user by ID: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       
@@ -258,9 +258,17 @@ class UserProvider extends BaseProvider {
         final userData = await _usersService.getUser(id);
         return userData != null ? User.fromMap(userData) : null;
       } catch (retryError, retryStackTrace) {
-        Logger.error('Retry failed: $retryError', retryError, retryStackTrace);
+        Logger.error('Retry failed: $retryError', retryError);
         rethrow;
       }
+    }
+  }
+
+  /// Load workers only if not already loaded or if forced
+  Future<void> loadIfNeeded() async {
+    // Only load if workers list is empty
+    if (_workers.isEmpty) {
+      await loadWorkers();
     }
   }
 }

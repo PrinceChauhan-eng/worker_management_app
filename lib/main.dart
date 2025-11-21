@@ -8,7 +8,6 @@ import 'providers/advance_provider.dart';
 import 'providers/salary_provider.dart';
 import 'providers/login_status_provider.dart';
 import 'providers/notification_provider.dart';
-import 'providers/hybrid_database_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/notification_service.dart';
 import 'services/database_updater.dart';
@@ -86,9 +85,6 @@ void main() async {
         }),
         ChangeNotifierProvider(create: (_) {
           return NotificationProvider();
-        }),
-        ChangeNotifierProvider(create: (_) {
-          return HybridDatabaseProvider();
         }),
         ChangeNotifierProvider(create: (_) {
           return ThemeProvider();

@@ -13,7 +13,9 @@ create table if not exists public.attendance (
   logout_longitude double precision,
   logout_address text,
   created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  -- Add unique constraint for worker_id and date
+  unique(worker_id, date)
 );
 
 -- Create indexes for attendance table

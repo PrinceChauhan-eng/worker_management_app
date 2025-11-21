@@ -17,7 +17,7 @@ import 'notifications_screen.dart';
 // Admin module screens
 import 'admin/dashboard_home_screen.dart';
 import 'admin/workers_screen.dart';
-import 'enhanced_attendance_screen.dart';
+import 'admin/attendance_screen.dart';
 import 'admin/salary_screen.dart';
 import 'admin/admin_reports_screen.dart';
 
@@ -34,7 +34,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final List<Widget> _screens = [
     DashboardHomeScreen(),
     WorkersScreen(),
-    EnhancedAttendanceScreen(),
+    AttendanceScreen(),
     SalaryScreen(),
     AdminReportsScreen(),
   ];

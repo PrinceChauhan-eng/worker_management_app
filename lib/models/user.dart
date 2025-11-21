@@ -76,7 +76,7 @@ class User {
       'id_proof': idProof,
       'address': address,
       'email': email,
-      'email_verified': emailVerified == true ? 1 : 0,
+      'email_verified': emailVerified, // Keep as boolean to match database column type
       'email_verification_code': emailVerificationCode,
       'designation': designation, // Add designation to map
       'created_by': createdBy, // Add createdBy to map

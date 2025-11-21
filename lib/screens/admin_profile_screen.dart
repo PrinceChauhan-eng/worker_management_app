@@ -48,7 +48,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     
     Logger.info('Current admin user in provider: ${user?.name} (ID: ${user?.id})');
     if (user != null) {
-      Logger.debug('Admin user details: Email=${user.email}, Address=${user.address}, Photo=${user.profilePhoto}, Designation=${user.designation}, Phone=${user.phone}');
+      Logger.info('Admin user details: Email=${user.email}, Address=${user.address}, Photo=${user.profilePhoto}, Designation=${user.designation}, Phone=${user.phone}');
       _emailController.text = user.email ?? '';
       _addressController.text = user.address ?? '';
       _designationController.text = user.designation ?? '';
@@ -57,7 +57,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       _idProofPath = user.idProof;
       Logger.info('Admin profile data loaded successfully');
     } else {
-        Logger.warning('No admin user found in provider');
+        Logger.warn('No admin user found in provider');
     }
   }
 
@@ -160,7 +160,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     Logger.info('Admin email entered: $email');
     
     if (email.isEmpty) {
-      Logger.warning('Email is empty');
+      Logger.warn('Email is empty');
       Fluttertoast.showToast(
         msg: 'Please enter an email address',
         backgroundColor: Colors.red,
@@ -169,7 +169,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     }
 
     if (!EmailVerificationService.isValidEmail(email)) {
-      Logger.warning('Email is invalid: $email');
+      Logger.warn('Email is invalid: $email');
       Fluttertoast.showToast(
         msg: 'Please enter a valid email',
         backgroundColor: Colors.red,
@@ -247,12 +247,12 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       final currentUser = userProvider.currentUser!;
 
       Logger.info('Saving admin profile...');
-      Logger.debug('Profile photo path: $_profilePhotoPath');
-      Logger.debug('ID proof path: $_idProofPath');
-      Logger.debug('Email: ${_emailController.text.trim()}');
-      Logger.debug('Address: ${_addressController.text.trim()}');
-      Logger.debug('Designation: ${_designationController.text.trim()}');
-      Logger.debug('Phone: ${_phoneController.text.trim()}');
+      Logger.info('Profile photo path: $_profilePhotoPath');
+      Logger.info('ID proof path: $_idProofPath');
+      Logger.info('Email: ${_emailController.text.trim()}');
+      Logger.info('Address: ${_addressController.text.trim()}');
+      Logger.info('Designation: ${_designationController.text.trim()}');
+      Logger.info('Phone: ${_phoneController.text.trim()}');
 
       final updatedUser = currentUser.copyWith(
         email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),

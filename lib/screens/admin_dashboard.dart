@@ -487,22 +487,30 @@ class AdminDashboardScreen extends StatelessWidget {
     UserProvider userProvider,
     AttendanceProvider attendanceProvider,
   ) async {
+    // Get login status provider
+    final loginStatusProvider = Provider.of<LoginStatusProvider>(
+      context,
+      listen: false,
+    );
+    
     // Get total workers
     final totalWorkers = userProvider.workers
         .where((user) => user.role == 'worker')
         .length;
 
-    // Get attendance statistics
-    final attendanceStats = await attendanceProvider.getTodaySummary();
-    final presentCount = attendanceStats['present'] ?? 0;
-    final absentCount = totalWorkers - presentCount;
+    // Get today's login status data
+    final todayLoginStatus = await loginStatusProvider.getTodayLoginStatus();
+    
+    // Use login status data for accurate statistics
+    final loggedInCount = todayLoginStatus.where((s) => s['is_logged_in'] == true).length;
+    final absentCount = totalWorkers - loggedInCount;
 
     // For paid salaries, we would need to query the salary table
     final paidSalaries = 0; // Placeholder
 
     return {
       'total': totalWorkers,
-      'loggedIn': presentCount,
+      'loggedIn': loggedInCount,
       'absent': absentCount > 0 ? absentCount : 0,
       'paidSalaries': paidSalaries,
     };

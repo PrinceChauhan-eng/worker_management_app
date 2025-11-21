@@ -11,6 +11,7 @@ import '../providers/attendance_provider.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/profile_menu_button.dart';
 import '../models/login_status.dart';
+import '../utils/logger.dart'; // Add this import (Fix #7)
 import 'worker_attendance_history_screen.dart';
 import 'my_salary_screen.dart';
 import 'my_advance_screen.dart';
@@ -38,37 +39,31 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeData();
+    // Schedule asynchronous startup without blocking the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeData(); // no await here
+    });
   }
 
   Future<void> _initializeData() async {
     try {
       print('Initializing worker dashboard data...');
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final notificationProvider = Provider.of<NotificationProvider>(
-        context,
-        listen: false,
-      );
+      final userProv = Provider.of<UserProvider>(context, listen: false);
+      final loginProv = Provider.of<LoginStatusProvider>(context, listen: false);
+      final notificationProv = Provider.of<NotificationProvider>(context, listen: false);
 
-      // Load user data if not already loaded
-      if (userProvider.currentUser != null) {
-        print(
-          'Loading user data for worker ID: ${userProvider.currentUser!.id}',
-        );
-        await userProvider.loadWorkers();
-      }
-
-      // Check today's login status
-      await _checkTodayLoginStatus();
-
-      // Load notifications for the current user
-      if (userProvider.currentUser != null) {
-        await notificationProvider.loadNotifications(
-          userProvider.currentUser!.id!,
-          userProvider.currentUser!.role,
-        );
-      }
-
+      // run in parallel
+      await Future.wait([
+        userProv.loadIfNeeded(),        // implement such helper to no-op if already loaded
+        if (userProv.currentUser != null) 
+          loginProv.loadIfNeeded(userProv.currentUser!.id!),
+        if (userProv.currentUser != null) 
+          notificationProv.loadIfNeeded(
+            userProv.currentUser!.id!,
+            userProv.currentUser!.role,
+          ),
+      ].where((item) => item != null).cast<Future<void>>().toList());
+      
       print('Worker dashboard data initialized successfully');
     } catch (e) {
       print('Error initializing worker dashboard data: $e');
@@ -261,11 +256,14 @@ class _DashboardHomeState extends State<_DashboardHome> {
       );
 
       if (userProvider.currentUser != null) {
-        // Load all notifications for the user
-        await notificationProvider.loadNotifications(
-          userProvider.currentUser!.id!,
-          userProvider.currentUser!.role,
-        );
+        // Check if notifications are already loaded (Fix #8)
+        if (!notificationProvider.isLoaded) {
+          // Load all notifications for the user
+          await notificationProvider.loadNotifications(
+            userProvider.currentUser!.id!,
+            userProvider.currentUser!.role,
+          );
+        }
 
         // Get unread notifications
         final unreadNotifications = notificationProvider.notifications
@@ -287,7 +285,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
 
           // Check if the worker was marked as absent and is currently logged in
           if (loginStatusProvider.isLoggedIn) {
-            final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+            final today = DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
             final todayStatus = await loginStatusProvider.getLoginStatusForDate(
               userProvider.currentUser!.id!,
               today,
@@ -339,8 +337,9 @@ class _DashboardHomeState extends State<_DashboardHome> {
 
     if (userProvider.currentUser != null) {
       // Update the login status to logged out
-      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      final currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
+      // Use normalized time method (Fix #7)
+      final currentTime = Logger.nowTime();
 
       LoginStatus updatedStatus;
 
@@ -416,7 +415,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
       final loginStatus = result['loginStatus'] as LoginStatus;
       await attendanceProvider.markLogin(
         workerId: userProvider.currentUser!.id!,
-        inTime: loginStatus.loginTime ?? DateFormat('HH:mm:ss').format(DateTime.now()),
+        inTime: loginStatus.loginTime ?? Logger.nowTime(), // Use normalized time method (Fix #7)
         address: loginStatus.loginAddress,
         latitude: loginStatus.loginLatitude,
         longitude: loginStatus.loginLongitude,
@@ -471,7 +470,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
       if (loginStatus != null) {
         await attendanceProvider.markLogout(
           workerId: userProvider.currentUser!.id!,
-          outTime: loginStatus.logoutTime ?? DateFormat('HH:mm:ss').format(DateTime.now()),
+          outTime: loginStatus.logoutTime ?? Logger.nowTime(), // Use normalized time method (Fix #7)
           address: loginStatus.logoutAddress,
           latitude: loginStatus.logoutLatitude,
           longitude: loginStatus.logoutLongitude,
@@ -615,7 +614,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            'Today is ${DateFormat('EEEE, MMM d').format(DateTime.now())}',
+                            'Today is ${DateFormat('EEEE, MMM d').format(DateTime.now().toLocal())}',
                             style: GoogleFonts.poppins(
                               color: Colors.white.withValues(alpha: 0.8),
                               fontSize: 14,

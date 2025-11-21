@@ -5,36 +5,67 @@ import 'schema_refresher.dart'; // Add this import
 class LoginService {
   final SchemaRefresher _schemaRefresher = SchemaRefresher(); // Add this
   
-  /// Insert or update login_status (unique worker_id + date)
+  /// Insert or update login_status
   Future<int> upsertStatus(Map<String, dynamic> status) async {
     final payload = MapCase.toSnake(status);
-
-    // Only remove ID if it's null for insert operations
-    if (payload['id'] == null) {
-      payload.remove('id');
-    }
+    
+    // For GENERATED ALWAYS identity columns, always remove ID
+    payload.remove('id');
+    
+    final workerId = payload['worker_id'] as int;
+    final date = payload['date'] as String;
 
     try {
-      final res = await supa
+      // First check if a record already exists for this worker_id and date
+      final existingRecord = await supa
           .from('login_status')
-          .upsert(payload, onConflict: 'worker_id,date')
           .select('id')
-          .single();
+          .eq('worker_id', workerId)
+          .eq('date', date)
+          .maybeSingle();
 
-      return res['id'] as int;
+      if (existingRecord != null) {
+        // Update existing record
+        final id = existingRecord['id'] as int;
+        await supa.from('login_status').update(payload).eq('id', id);
+        return id;
+      } else {
+        // Insert new record
+        final res = await supa
+            .from('login_status')
+            .insert(payload)
+            .select('id')
+            .single();
+        return res['id'] as int;
+      }
     } catch (e) {
       // Try to fix schema errors and retry
       await _schemaRefresher.tryFixExtendedSchemaError(e);
       await Future.delayed(const Duration(seconds: 2));
       
-      // Retry the operation
-      final res = await supa
+      // Retry the same logic
+      // First check if a record already exists for this worker_id and date
+      final existingRecord = await supa
           .from('login_status')
-          .upsert(payload, onConflict: 'worker_id,date')
           .select('id')
-          .single();
+          .eq('worker_id', workerId)
+          .eq('date', date)
+          .maybeSingle();
 
-      return res['id'] as int;
+      if (existingRecord != null) {
+        // Update existing record
+        final id = existingRecord['id'] as int;
+        await supa.from('login_status').update(payload).eq('id', id);
+        return id;
+      } else {
+        // Insert new record
+        final res = await supa
+            .from('login_status')
+            .insert(payload)
+            .select('id')
+            .single();
+        return res['id'] as int;
+      }
     }
   }
 
@@ -108,10 +139,26 @@ class LoginService {
     }
   }
 
+  /// Get today's login status
+  Future<List<Map<String, dynamic>>> getTodayLoginStatus() async {
+    try {
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      return await supa.from('login_status').select().eq('date', today);
+    } catch (e) {
+      await _schemaRefresher.tryFixExtendedSchemaError(e);
+      
+      // Retry after schema refresh
+      await Future.delayed(const Duration(seconds: 1));
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      return await supa.from('login_status').select().eq('date', today);
+    }
+  }
+
   /// Insert login history
   Future<int> insertHistory(Map<String, dynamic> hist) async {
     final payload = MapCase.toSnake(hist);
-    // Only remove ID if it's null for insert operations
+    // For GENERATED ALWAYS identity columns, only remove ID if it's null/empty
+    // Keep ID for updates, remove for inserts
     if (payload['id'] == null) {
       payload.remove('id');
     }
