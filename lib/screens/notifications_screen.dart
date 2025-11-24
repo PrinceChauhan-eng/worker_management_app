@@ -7,6 +7,7 @@ import '../providers/notification_provider.dart';
 import '../providers/user_provider.dart';
 import '../widgets/custom_app_bar.dart';
 import '../providers/base_provider.dart';
+import 'worker_dashboard/worker_dashboard_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -62,6 +63,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         userProvider.currentUser!.role,
       );
     }
+  }
+
+  void _handleNotificationTap(NotificationModel notification) async {
+    // Mark as read if not already read
+    if (!notification.isRead) {
+      await _markAsRead(notification);
+    }
+
+    // Handle deep linking based on notification type
+    if (notification.type == "attendance") {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const WorkerDashboardScreen(openAttendanceDetails: true),
+        ),
+      );
+    }
+    // Add other notification types as needed
   }
 
   @override
@@ -167,11 +186,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       color: color,
       child: InkWell(
-        onTap: () {
-          if (!notification.isRead) {
-            _markAsRead(notification);
-          }
-        },
+        onTap: () => _handleNotificationTap(notification),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(

@@ -3,15 +3,13 @@ import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../utils/error_reporter.dart';
-import '../models/user.dart';
 import '../providers/user_provider.dart';
+import '../providers/auth_provider.dart';
 import '../services/session_manager.dart';
-import '../services/users_service.dart';
-import '../utils/password_utils.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/custom_button.dart';
 import 'admin_dashboard_screen.dart';
-import 'worker_dashboard_screen.dart';
+import 'worker_dashboard/worker_dashboard_screen.dart';
 import 'forgot_password_screen.dart';
 import 'signup_screen.dart';
 
@@ -122,102 +120,24 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = true);
 
       try {
-        final usersService = UsersService();
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final userProvider = Provider.of<UserProvider>(context, listen: false);
 
-        User? user;
         final identifier = _identifierController.text.trim();
-
-        print('Attempting login with identifier: $identifier, role: $_selectedRole');
         
-        // Determine login method based on input
-        if (_isValidEmail(identifier)) {
-          // Email login
-          print('Authenticating with email: $identifier');
-          // Use the new efficient method to get user by email
-          final userData = await usersService.getUserByEmail(identifier);
-          if (userData != null && userData['role'] == _selectedRole) {
-            final foundUser = User.fromMap(userData);
-            // Verify password
-            bool passwordMatches;
-            if (PasswordUtils.isHashed(foundUser.password)) {
-              passwordMatches = PasswordUtils.verifyPassword(
-                _passwordController.text,
-                foundUser.password,
-              );
-            } else {
-              passwordMatches = _passwordController.text == foundUser.password;
-            }
-            
-            if (passwordMatches) {
-              user = foundUser;
-            }
-          }
-        } else if (_isValidPhone(identifier)) {
-          // Phone login
-          print('Authenticating with phone: $identifier');
-          final userData = await usersService.getUserByPhone(identifier);
-          if (userData != null) {
-            final foundUser = User.fromMap(userData);
-            // Check if password matches
-            bool passwordMatches;
-            if (PasswordUtils.isHashed(foundUser.password)) {
-              passwordMatches = PasswordUtils.verifyPassword(
-                _passwordController.text,
-                foundUser.password,
-              );
-            } else {
-              passwordMatches = _passwordController.text == foundUser.password;
-            }
-            
-            if (passwordMatches && foundUser.role == _selectedRole) {
-              user = foundUser;
-            }
-          }
-        } else {
-          // Try ID login (numeric)
-          final userId = int.tryParse(identifier);
-          if (userId != null && userId > 0) {
-            print('Authenticating with ID: $userId');
-            final userData = await usersService.getUser(userId);
-            if (userData != null && userData['role'] == _selectedRole) {
-              final foundUser = User.fromMap(userData);
-              // Verify password
-              bool passwordMatches;
-              if (PasswordUtils.isHashed(foundUser.password)) {
-                passwordMatches = PasswordUtils.verifyPassword(
-                  _passwordController.text,
-                  foundUser.password,
-                );
-              } else {
-                passwordMatches = _passwordController.text == foundUser.password;
-              }
-              
-              if (passwordMatches) {
-                user = foundUser;
-              }
-            }
-          }
-        }
+        // Use the new auth provider for login
+        final success = await authProvider.login(
+          identifier: identifier,
+          password: _passwordController.text,
+          role: _selectedRole,
+          rememberMe: _rememberMe,
+        );
 
-        if (user != null) {
+        if (success) {
           // Login successful
-          print('Login successful for user: ${user.name}');
+          final user = authProvider.currentUser!;
           
-          // Save last login time
-          await SessionManager().setRememberMe(identifier);
-          
-          // Save remember me if checked
-          if (_rememberMe) {
-            await SessionManager().setRememberMe(user.phone ?? identifier);
-          } else {
-            await SessionManager().clearRememberMe();
-          }
-
-          // Add session
-          await SessionManager().addSession(user.id!, user.role);
-          
-          // Set current user in provider
+          // Set current user in user provider for backward compatibility
           userProvider.setCurrentUser(user);
           
           // Show success message
@@ -240,23 +160,12 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         } else {
           // Login failed
-          print('Login failed for identifier: $identifier');
+          final errorMessage = authProvider.errorMessage ?? 'Invalid credentials';
           
-          // Check if there are any users in the database
-          final allUsers = await usersService.getUsers();
-          if (allUsers.isEmpty) {
-            // No users in database
-            Fluttertoast.showToast(
-              msg: 'No users found in database. Contact system administrator.',
-              backgroundColor: Colors.orange,
-            );
-          } else {
-            // Users exist but credentials don't match
-            Fluttertoast.showToast(
-              msg: 'Invalid credentials. Please try again.',
-              backgroundColor: Colors.red,
-            );
-          }
+          Fluttertoast.showToast(
+            msg: errorMessage,
+            backgroundColor: Colors.red,
+          );
         }
       } catch (e, stackTrace) {
         print('Login error: $e');

@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/login_status_provider.dart';
-import '../../providers/attendance_provider.dart';
 import '../../models/user.dart';
 import '../../models/login_status.dart';
+import '../../widgets/enhanced_dashboard_card.dart';
+import '../../widgets/shimmer_loading.dart';
 import '../login_status_screen.dart';
 import '../manage_advances_screen.dart';
 import '../advance_only_screen.dart';
@@ -304,40 +304,12 @@ class DashboardHomeScreen extends StatelessWidget {
     required IconData icon,
     required Color color,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            title,
-            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
-          ),
-        ],
-      ),
+    return EnhancedDashboardCard(
+      title: title,
+      value: value,
+      icon: icon,
+      color: color,
+      isAnimated: true,
     );
   }
 
@@ -350,15 +322,28 @@ class DashboardHomeScreen extends StatelessWidget {
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
         decoration: BoxDecoration(
-          color: color,
+          gradient: LinearGradient(
+            colors: [
+              color.withOpacity(0.9),
+              color.withOpacity(0.7),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+              color: color.withOpacity(0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: color.withOpacity(0.2),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
@@ -461,18 +446,37 @@ class DashboardHomeScreen extends StatelessWidget {
     return FutureBuilder<User?>(
       future: Provider.of<UserProvider>(context, listen: false).getUser(loginStatus.workerId),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const ShimmerLoading(height: 60);
+        }
+        
         final worker = snapshot.data;
         final workerName = worker?.name ?? 'Unknown Worker';
         final loginTime = formatTimeString(loginStatus.loginTime, loginStatus.date);
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: const Color(0xFF4CAF50),
-              child: Icon(
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
                 Icons.check_circle,
-                color: Colors.white,
+                color: Color(0xFF4CAF50),
                 size: 20,
               ),
             ),
@@ -480,17 +484,30 @@ class DashboardHomeScreen extends StatelessWidget {
               workerName,
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w600,
+                fontSize: 16,
               ),
             ),
             subtitle: Text(
               'Logged in at $loginTime',
               style: GoogleFonts.poppins(
-                fontSize: 12,
+                fontSize: 13,
+                color: Colors.grey[600],
               ),
             ),
-            trailing: const Icon(
-              Icons.check_circle,
-              color: Color(0xFF4CAF50),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Online',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         );

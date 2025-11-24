@@ -14,6 +14,7 @@ import '../../widgets/custom_app_bar.dart';
 import '../../services/notifications_service.dart';
 import '../../services/attendance_service.dart';
 import '../../utils/logger.dart';
+import 'worker_attendance_timeline_screen.dart';
 
 class WorkerAttendanceScreen extends StatefulWidget {
   final User? preselectedWorker;
@@ -219,6 +220,28 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 15),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _viewTimeline(),
+                      icon: const Icon(Icons.timeline, size: 20),
+                      label: Text(
+                        'View Timeline',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
           ],
@@ -400,6 +423,22 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
         backgroundColor: Colors.red,
       );
     }
+  }
+
+  void _viewTimeline() {
+    if (_selectedWorker == null) return;
+    
+    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WorkerAttendanceTimelineScreen(
+          workerId: _selectedWorker!.id!,
+          date: dateStr,
+        ),
+      ),
+    );
   }
 
   Future<void> _sendAttendanceNotification(

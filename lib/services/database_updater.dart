@@ -30,7 +30,7 @@ class DatabaseUpdater {
       Logger.info('Admin-user mapping table migration completed');
       
       Logger.info('All database migrations completed successfully');
-    } catch (e, stackTrace) {
+    } catch (e) {
       Logger.error('Error during database migrations: $e', e);
       rethrow;
     }

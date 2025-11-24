@@ -1,10 +1,13 @@
 import '../models/attendance.dart';
+import '../models/attendance_log.dart';
 import '../services/attendance_service.dart';
+import '../services/attendance_log_service.dart';
 import '../services/schema_refresher.dart';
 import 'base_provider.dart';
 
 class AttendanceProvider extends BaseProvider {
   final AttendanceService _attendanceService = AttendanceService();
+  final AttendanceLogService _attendanceLogService = AttendanceLogService();
   final SchemaRefresher _schemaRefresher = SchemaRefresher();
   
   List<Attendance> _attendances = [];
@@ -315,6 +318,20 @@ class AttendanceProvider extends BaseProvider {
         setState(ViewState.idle);
         notifyListeners();
       }
+    }
+  }
+
+  /// Get attendance timeline for a worker on a specific date
+  Future<List<AttendanceLog>> getAttendanceTimeline(int workerId, String date) async {
+    try {
+      return await _attendanceLogService.getTimeline(workerId, date);
+    } catch (e) {
+      // Try to fix schema errors
+      await _schemaRefresher.tryFixSchemaError(e);
+      
+      // Retry after schema refresh
+      await Future.delayed(const Duration(seconds: 2));
+      return await _attendanceLogService.getTimeline(workerId, date);
     }
   }
 

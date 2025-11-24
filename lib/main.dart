@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'services/session_manager.dart';
 import 'providers/user_provider.dart';
+import 'providers/auth_provider.dart';
 import 'providers/attendance_provider.dart';
 import 'providers/advance_provider.dart';
 import 'providers/salary_provider.dart';
@@ -70,6 +71,9 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) {
           return UserProvider();
+        }),
+        ChangeNotifierProvider(create: (_) {
+          return AuthProvider();
         }),
         ChangeNotifierProvider(create: (_) {
           return AttendanceProvider();

@@ -11,6 +11,9 @@ import '../providers/notification_provider.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/profile_menu_button.dart';
 
+// Services
+import '../services/route_guard.dart';
+
 // Screens
 import 'notifications_screen.dart';
 
@@ -58,6 +61,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = Provider.of<UserProvider>(context).currentUser;
+    
+    // Enhanced route guard
+    if (user?.role != "admin") {
+      // Redirect to login screen
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        RouteGuard.redirectToLogin(context);
+      });
+      return const SizedBox(); // block access
+    }
+    
     final adminName =
         Provider.of<UserProvider>(context).currentUser?.name ?? 'Admin';
 

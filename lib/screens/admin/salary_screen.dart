@@ -4,6 +4,7 @@ import '../process_salary_screen.dart';
 import '../manage_advances_screen.dart';
 import '../salary_advance_screen.dart';
 import '../reports_screen.dart';
+import 'automated_salary_screen.dart';
 
 class SalaryScreen extends StatelessWidget {
   const SalaryScreen({super.key});
@@ -73,6 +74,20 @@ class SalaryScreen extends StatelessWidget {
                             MaterialPageRoute(
                               builder: (context) =>
                                   const ManageAdvancesScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      buildFeatureCard(
+                        context,
+                        title: 'Automated Salary',
+                        icon: Icons.auto_graph,
+                        color: const Color(0xFF1E88E5),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AutomatedSalaryScreen(),
                             ),
                           );
                         },

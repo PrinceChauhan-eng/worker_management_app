@@ -15,7 +15,7 @@ class LocationTableUpdater {
       Logger.info('Login status location columns ensured');
       
       Logger.info('Location table synchronization completed successfully');
-    } catch (e, stackTrace) {
+    } catch (e) {
       Logger.error('Error during location table synchronization: $e', e);
       rethrow;
     }

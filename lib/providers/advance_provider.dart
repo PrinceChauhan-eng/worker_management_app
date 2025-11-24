@@ -187,7 +187,7 @@ class AdvanceProvider extends BaseProvider {
       await loadAdvances();
       setState(ViewState.idle);
       return true;
-    } catch (e, stackTrace) {
+    } catch (e) {
       Logger.error('!!! ERROR UPDATING ADVANCE !!! Error type: ${e.runtimeType}, Error message: $e', e);
       setState(ViewState.idle);
       

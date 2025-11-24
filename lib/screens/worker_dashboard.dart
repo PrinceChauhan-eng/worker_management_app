@@ -3,17 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import '../providers/user_provider.dart';
 import '../providers/login_status_provider.dart';
-import '../providers/notification_provider.dart';
-import '../providers/theme_provider.dart';
 import '../providers/base_provider.dart';
-import '../models/login_status.dart';
 import '../widgets/hover_toggle_button.dart';
-import '../widgets/summary_card.dart';
-import '../services/location_service.dart';
-import '../utils/logger.dart';
 
 // Helper function to format time strings with proper timezone conversion
 String formatTimeString(String? timeStr, String dateStr) {
@@ -41,9 +34,9 @@ class _DashboardHome extends StatefulWidget {
 }
 
 class _DashboardHomeState extends State<_DashboardHome> {
-  bool _isLoggedIn = false;
-  String _loginTime = '';
-  String _logoutTime = '';
+  final bool _isLoggedIn = false;
+  final String _loginTime = '';
+  final String _logoutTime = '';
 
   @override
   Widget build(BuildContext context) {

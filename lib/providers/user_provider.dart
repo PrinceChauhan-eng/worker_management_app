@@ -36,7 +36,7 @@ class UserProvider extends BaseProvider {
 
       setState(ViewState.idle);
       notifyListeners();
-    } catch (e, stackTrace) {
+    } catch (e) {
       Logger.error('Error loading workers: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
@@ -55,7 +55,7 @@ class UserProvider extends BaseProvider {
         
         setState(ViewState.idle);
         notifyListeners();
-      } catch (retryError, retryStackTrace) {
+      } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         notifyListeners();
@@ -72,7 +72,7 @@ class UserProvider extends BaseProvider {
       setState(ViewState.idle);
       Logger.info('User added successfully: ${user.name}');
       return true;
-    } catch (e, stackTrace) {
+    } catch (e) {
       Logger.error('Error adding user: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
@@ -85,7 +85,7 @@ class UserProvider extends BaseProvider {
         setState(ViewState.idle);
         Logger.info('User added successfully: ${user.name}');
         return true;
-      } catch (retryError, retryStackTrace) {
+      } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         return false;
@@ -112,7 +112,7 @@ class UserProvider extends BaseProvider {
       notifyListeners();
       Logger.info('User update completed successfully');
       return true;
-    } catch (e, stackTrace) {
+    } catch (e) {
       Logger.error('Error updating user: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
@@ -133,7 +133,7 @@ class UserProvider extends BaseProvider {
         notifyListeners();
         Logger.info('User update completed successfully');
         return true;
-      } catch (retryError, retryStackTrace) {
+      } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         notifyListeners();
@@ -150,7 +150,7 @@ class UserProvider extends BaseProvider {
       await loadWorkers();
       setState(ViewState.idle);
       return true;
-    } catch (e, stackTrace) {
+    } catch (e) {
       Logger.error('Error deleting user: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
@@ -162,7 +162,7 @@ class UserProvider extends BaseProvider {
         await loadWorkers();
         setState(ViewState.idle);
         return true;
-      } catch (retryError, retryStackTrace) {
+      } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         return false;
@@ -192,7 +192,7 @@ class UserProvider extends BaseProvider {
       setState(ViewState.idle);
       notifyListeners();
       return _currentUser;
-    } catch (e, stackTrace) {
+    } catch (e) {
       Logger.error('Error authenticating user: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixSchemaError(e);
@@ -218,7 +218,7 @@ class UserProvider extends BaseProvider {
         setState(ViewState.idle);
         notifyListeners();
         return _currentUser;
-      } catch (retryError, retryStackTrace) {
+      } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
         return null;
@@ -247,7 +247,7 @@ class UserProvider extends BaseProvider {
       Logger.info('Getting user by ID: $id');
       final userData = await _usersService.getUser(id);
       return userData != null ? User.fromMap(userData) : null;
-    } catch (e, stackTrace) {
+    } catch (e) {
       Logger.error('Error getting user by ID: $e', e);
       // Try to fix schema errors
       await _schemaRefresher.tryFixExtendedSchemaError(e);
@@ -257,7 +257,7 @@ class UserProvider extends BaseProvider {
         await Future.delayed(const Duration(seconds: 2));
         final userData = await _usersService.getUser(id);
         return userData != null ? User.fromMap(userData) : null;
-      } catch (retryError, retryStackTrace) {
+      } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         rethrow;
       }
