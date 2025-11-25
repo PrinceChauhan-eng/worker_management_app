@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import '../providers/user_provider.dart';
 import '../providers/advance_provider.dart';
 import '../widgets/custom_app_bar.dart';
-import 'request_advance_screen.dart'; // Add this import
+// Add this import
 
 class MyAdvanceScreen extends StatefulWidget {
   const MyAdvanceScreen({super.key});
@@ -239,22 +239,10 @@ class _MyAdvanceScreenState extends State<MyAdvanceScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RequestAdvanceScreen(),
-                    ),
-                  ).then((value) {
-                    // Refresh advances when returning from request screen
-                    if (value == true) {
-                      _loadAdvances();
-                    }
-                  });
-                },
+                onPressed: null, // Disabled for now
                 icon: const Icon(Icons.add, color: Colors.white),
                 label: Text(
-                  'Request Advance',
+                  'Request Advance (Disabled)',
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -262,7 +250,7 @@ class _MyAdvanceScreenState extends State<MyAdvanceScreen> {
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E88E5), // Royal Blue
+                  backgroundColor: Colors.grey, // Greyed out
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

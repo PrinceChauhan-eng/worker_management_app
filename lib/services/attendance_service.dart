@@ -2,10 +2,72 @@ import '../utils/map_case.dart';
 import 'supabase_client.dart';
 import '../utils/logger.dart';
 import 'schema_refresher.dart';
+import 'notifications_service.dart';
+import '../models/notification.dart' as notif;
+import '../models/attendance_log.dart';
+import '../services/users_service.dart';
+import '../services/attendance_log_service.dart';
+import 'package:intl/intl.dart';
 
 class AttendanceService {
   static const String _tableName = 'attendance';
   final SchemaRefresher _schemaRefresher = SchemaRefresher();
+  final NotificationsService _notificationsService = NotificationsService();
+  final UsersService _usersService = UsersService();
+  final AttendanceLogService _attendanceLogService = AttendanceLogService();
+  
+  /// Send notification to worker about attendance update
+  Future<void> _sendAttendanceNotification({
+    required int workerId,
+    required String date,
+    required bool present,
+    String? inTime,
+    String? outTime,
+  }) async {
+    try {
+      // Get worker details
+      final workerData = await _usersService.getUser(workerId);
+      if (workerData == null) return;
+      
+      // Format date for display
+      final formattedDate = DateFormat('dd MMM').format(DateTime.parse(date));
+      
+      // Create notification message
+      String title = 'Attendance Updated';
+      String message;
+      
+      if (present) {
+        if (inTime != null && outTime != null) {
+          message = 'Your attendance on $formattedDate updated: PRESENT $inTime – $outTime';
+        } else if (inTime != null) {
+          message = 'Your attendance on $formattedDate updated: PRESENT Login at $inTime';
+        } else if (outTime != null) {
+          message = 'Your attendance on $formattedDate updated: PRESENT Logout at $outTime';
+        } else {
+          message = 'Your attendance on $formattedDate updated: PRESENT';
+        }
+      } else {
+        message = 'Your attendance on $formattedDate updated: ABSENT';
+      }
+      
+      // Create notification object
+      final notification = notif.NotificationModel(
+        title: title,
+        message: message,
+        type: 'attendance',
+        userId: workerId,
+        userRole: 'worker',
+        isRead: false,
+        createdAt: DateTime.now().toIso8601String(),
+      );
+      
+      // Insert notification
+      await _notificationsService.insert(notification.toMap());
+      Logger.info('Attendance notification sent to worker $workerId for date $date');
+    } catch (e) {
+      Logger.error('Error sending attendance notification: $e', e);
+    }
+  }
 
   /// Mark attendance when worker logs in
   Future<void> markLogin({
@@ -32,6 +94,37 @@ class AttendanceService {
 
       await supa.from('attendance').update(payload).eq('worker_id', workerId).eq('date', today);
       Logger.info("✅ Login marked for worker $workerId at $inTime");
+      
+      // Create attendance log for login
+      try {
+        final log = AttendanceLog(
+          workerId: workerId,
+          date: today,
+          punchTime: inTime,
+          punchType: 'login',
+          locationLatitude: latitude,
+          locationLongitude: longitude,
+          locationAddress: address,
+          createdAt: DateTime.now().toIso8601String(),
+          updatedAt: DateTime.now().toIso8601String(),
+        );
+        await _attendanceLogService.addLog(log);
+        Logger.info("✅ Login log created for worker $workerId at $inTime");
+      } catch (e) {
+        Logger.error('Error creating login log: $e', e);
+      }
+      
+      // Send notification to worker
+      try {
+        await _sendAttendanceNotification(
+          workerId: workerId,
+          date: today,
+          present: true,
+          inTime: inTime,
+        );
+      } catch (e) {
+        Logger.error('Error sending login notification: $e', e);
+      }
       
       // Sync login status with attendance
       try {
@@ -66,6 +159,25 @@ class AttendanceService {
 
       await supa.from('attendance').update(payload).eq('worker_id', workerId).eq('date', today);
       Logger.info("✅ Login marked for worker $workerId at $inTime (retry)");
+      
+      // Create attendance log for login (retry)
+      try {
+        final log = AttendanceLog(
+          workerId: workerId,
+          date: today,
+          punchTime: inTime,
+          punchType: 'login',
+          locationLatitude: latitude,
+          locationLongitude: longitude,
+          locationAddress: address,
+          createdAt: DateTime.now().toIso8601String(),
+          updatedAt: DateTime.now().toIso8601String(),
+        );
+        await _attendanceLogService.addLog(log);
+        Logger.info("✅ Login log created for worker $workerId at $inTime (retry)");
+      } catch (e) {
+        Logger.error('Error creating login log (retry): $e', e);
+      }
       
       // Sync login status with attendance
       try {
@@ -107,6 +219,37 @@ class AttendanceService {
       await supa.from('attendance').update(payload).eq('worker_id', workerId).eq('date', today);
       Logger.info("✅ Logout marked for worker $workerId at $outTime");
       
+      // Create attendance log for logout
+      try {
+        final log = AttendanceLog(
+          workerId: workerId,
+          date: today,
+          punchTime: outTime,
+          punchType: 'logout',
+          locationLatitude: latitude,
+          locationLongitude: longitude,
+          locationAddress: address,
+          createdAt: DateTime.now().toIso8601String(),
+          updatedAt: DateTime.now().toIso8601String(),
+        );
+        await _attendanceLogService.addLog(log);
+        Logger.info("✅ Logout log created for worker $workerId at $outTime");
+      } catch (e) {
+        Logger.error('Error creating logout log: $e', e);
+      }
+      
+      // Send notification to worker
+      try {
+        await _sendAttendanceNotification(
+          workerId: workerId,
+          date: today,
+          present: true,
+          outTime: outTime,
+        );
+      } catch (e) {
+        Logger.error('Error sending logout notification: $e', e);
+      }
+      
       // Sync login status with attendance
       try {
         await syncLoginStatusWithAttendance(
@@ -139,6 +282,25 @@ class AttendanceService {
 
       await supa.from('attendance').update(payload).eq('worker_id', workerId).eq('date', today);
       Logger.info("✅ Logout marked for worker $workerId at $outTime (retry)");
+      
+      // Create attendance log for logout (retry)
+      try {
+        final log = AttendanceLog(
+          workerId: workerId,
+          date: today,
+          punchTime: outTime,
+          punchType: 'logout',
+          locationLatitude: latitude,
+          locationLongitude: longitude,
+          locationAddress: address,
+          createdAt: DateTime.now().toIso8601String(),
+          updatedAt: DateTime.now().toIso8601String(),
+        );
+        await _attendanceLogService.addLog(log);
+        Logger.info("✅ Logout log created for worker $workerId at $outTime (retry)");
+      } catch (e) {
+        Logger.error('Error creating logout log (retry): $e', e);
+      }
       
       // Sync login status with attendance
       try {
@@ -309,6 +471,21 @@ class AttendanceService {
     }
   }
 
+  /// Get attendance records with pagination
+  Future<List<Map<String, dynamic>>> getAttendancePaged({
+    required String date,
+    required int limit,
+    required int offset,
+  }) async {
+    final res = await supa
+        .from('attendance')
+        .select()
+        .eq('date', date)
+        .order('in_time', ascending: true)
+        .range(offset, offset + limit - 1);
+    return res;
+  }
+
   /// Insert or update attendance
   Future<int> upsertAttendance(Map<String, dynamic> attendance) async {
     final payload = MapCase.toSnake(attendance);
@@ -334,6 +511,19 @@ class AttendanceService {
         Logger.info('AttendanceService.upsertAttendance - updating existing record with id: $id, payload: $payload');
         await supa.from('attendance').update(payload).eq('id', id);
         
+        // Send notification to worker
+        try {
+          await _sendAttendanceNotification(
+            workerId: workerId,
+            date: date,
+            present: (payload['present'] as bool?) == true,
+            inTime: payload['in_time'] as String?,
+            outTime: payload['out_time'] as String?,
+          );
+        } catch (e) {
+          Logger.error('Error sending attendance notification: $e', e);
+        }
+        
         // Sync login status with attendance
         try {
           await syncLoginStatusWithAttendance(
@@ -352,6 +542,19 @@ class AttendanceService {
         // Insert new record
         Logger.info('AttendanceService.upsertAttendance - inserting new record with payload: $payload');
         final res = await supa.from('attendance').insert(payload).select('id').single();
+        
+        // Send notification to worker
+        try {
+          await _sendAttendanceNotification(
+            workerId: workerId,
+            date: date,
+            present: (payload['present'] as bool?) == true,
+            inTime: payload['in_time'] as String?,
+            outTime: payload['out_time'] as String?,
+          );
+        } catch (e) {
+          Logger.error('Error sending attendance notification: $e', e);
+        }
         
         // Sync login status with attendance
         try {
@@ -392,6 +595,19 @@ class AttendanceService {
         Logger.info('AttendanceService.upsertAttendance - retrying update existing record with id: $id, payload: $payload');
         await supa.from('attendance').update(payload).eq('id', id);
         
+        // Send notification to worker
+        try {
+          await _sendAttendanceNotification(
+            workerId: workerId,
+            date: date,
+            present: (payload['present'] as bool?) == true,
+            inTime: payload['in_time'] as String?,
+            outTime: payload['out_time'] as String?,
+          );
+        } catch (e) {
+          Logger.error('Error sending attendance notification: $e', e);
+        }
+        
         // Sync login status with attendance
         try {
           await syncLoginStatusWithAttendance(
@@ -410,6 +626,19 @@ class AttendanceService {
         // Insert new record
         Logger.info('AttendanceService.upsertAttendance - retrying insert new record with payload: $payload');
         final res = await supa.from('attendance').insert(payload).select('id').single();
+        
+        // Send notification to worker
+        try {
+          await _sendAttendanceNotification(
+            workerId: workerId,
+            date: date,
+            present: (payload['present'] as bool?) == true,
+            inTime: payload['in_time'] as String?,
+            outTime: payload['out_time'] as String?,
+          );
+        } catch (e) {
+          Logger.error('Error sending attendance notification: $e', e);
+        }
         
         // Sync login status with attendance
         try {
@@ -441,6 +670,19 @@ class AttendanceService {
       Logger.info('AttendanceService.updateById - payload: $payload, id: $id');
       await supa.from('attendance').update(payload).eq('id', id);
       
+      // Send notification to worker
+      try {
+        await _sendAttendanceNotification(
+          workerId: payload['worker_id'] as int,
+          date: payload['date'] as String,
+          present: (payload['present'] as bool?) == true,
+          inTime: payload['in_time'] as String?,
+          outTime: payload['out_time'] as String?,
+        );
+      } catch (e) {
+        Logger.error('Error sending attendance notification: $e', e);
+      }
+      
       // Sync login status with attendance
       try {
         await syncLoginStatusWithAttendance(
@@ -458,6 +700,19 @@ class AttendanceService {
       await Future.delayed(const Duration(seconds: 2));
       Logger.info('AttendanceService.updateById - retrying after schema refresh');
       await supa.from('attendance').update(payload).eq('id', id);
+      
+      // Send notification to worker
+      try {
+        await _sendAttendanceNotification(
+          workerId: payload['worker_id'] as int,
+          date: payload['date'] as String,
+          present: (payload['present'] as bool?) == true,
+          inTime: payload['in_time'] as String?,
+          outTime: payload['out_time'] as String?,
+        );
+      } catch (e) {
+        Logger.error('Error sending attendance notification: $e', e);
+      }
       
       // Sync login status with attendance
       try {

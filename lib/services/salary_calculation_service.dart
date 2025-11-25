@@ -3,15 +3,56 @@ import '../models/user.dart';
 import '../models/attendance.dart';
 import '../models/attendance_log.dart';
 import '../models/advance.dart';
+import '../models/notification.dart' as notif;
 import '../services/attendance_service.dart';
 import '../services/attendance_log_service.dart';
 import '../services/advance_service.dart';
+import '../services/notifications_service.dart';
 import '../utils/logger.dart';
 
 class SalaryCalculationService {
   final AttendanceService _attendanceService = AttendanceService();
   final AttendanceLogService _attendanceLogService = AttendanceLogService();
   final AdvanceService _advanceService = AdvanceService();
+  final NotificationsService _notificationsService = NotificationsService();
+  
+  /// Send notification to worker about salary generation
+  Future<void> _sendSalaryNotification({
+    required int workerId,
+    required String month,
+    required double netSalary,
+  }) async {
+    try {
+      // Format month for display
+      final formattedMonth = DateFormat('MMM yyyy').format(
+        DateTime(int.parse(month.split('-')[0]), int.parse(month.split('-')[1]))
+      );
+      
+      // Format salary with currency
+      final formattedSalary = '₹${netSalary.toStringAsFixed(0)}';
+      
+      // Create notification message
+      final title = 'Salary Generated';
+      final message = 'Your salary for $formattedMonth has been generated: $formattedSalary';
+      
+      // Create notification object
+      final notification = notif.NotificationModel(
+        title: title,
+        message: message,
+        type: 'salary',
+        userId: workerId,
+        userRole: 'worker',
+        isRead: false,
+        createdAt: DateTime.now().toIso8601String(),
+      );
+      
+      // Insert notification
+      await _notificationsService.insert(notification.toMap());
+      Logger.info('Salary notification sent to worker $workerId for month $month');
+    } catch (e) {
+      Logger.error('Error sending salary notification: $e', e);
+    }
+  }
 
   /// Calculate salary based on attendance hours with the specified rules:
   /// - ≥ 7 hours: Full day wage
@@ -114,6 +155,17 @@ class SalaryCalculationService {
       Logger.info('  Gross salary: $grossSalary');
       Logger.info('  Total advance: $totalAdvance');
       Logger.info('  Net salary: $netSalary');
+      
+      // Send notification to worker about salary generation
+      try {
+        await _sendSalaryNotification(
+          workerId: worker.id!,
+          month: month,
+          netSalary: netSalary,
+        );
+      } catch (e) {
+        Logger.error('Error sending salary notification: $e', e);
+      }
       
       return SalaryCalculationResult(
         workerId: worker.id!,

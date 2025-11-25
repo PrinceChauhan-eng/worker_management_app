@@ -4,17 +4,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/login_status_provider.dart';
+import '../../providers/attendance_provider.dart'; // Add attendance provider
 import '../../models/user.dart';
 import '../../models/login_status.dart';
-import '../../widgets/enhanced_dashboard_card.dart';
+import '../../models/attendance.dart'; // Add attendance model
 import '../../widgets/shimmer_loading.dart';
-import '../login_status_screen.dart';
-import '../manage_advances_screen.dart';
-import '../advance_only_screen.dart';
+import '../../widgets/dashboard_summary_row.dart'; // Add this import
 import '../process_salary_screen.dart';
-import '../salary_slips_screen.dart';
-import '../reports_screen.dart';
-import '../settings_screen.dart';
+import '../admin/worker_attendance_screen.dart'; // Add worker attendance screen
+import '../admin/advance_management_screen.dart'; // Add new advance management screen
+import '../reports_screen.dart'; // Add reports screen
+
 
 // Helper function to format time strings with proper timezone conversion
 String formatTimeString(String? timeStr, String dateStr) {
@@ -55,7 +55,7 @@ class DashboardHomeScreen extends StatelessWidget {
                   color: const Color(0xFF1E88E5),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 24), // Uniform vertical spacing
               Text(
                 'Manage your workforce efficiently',
                 style: GoogleFonts.poppins(
@@ -63,14 +63,14 @@ class DashboardHomeScreen extends StatelessWidget {
                   color: Colors.grey[600],
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 24), // Uniform vertical spacing
 
               // Statistics Cards
               Text(
                 'Today\'s Overview',
                 style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 20, // Increased font size
+                  fontWeight: FontWeight.w600, // Increased font weight
                   color: Colors.grey[800],
                 ),
               ),
@@ -88,35 +88,11 @@ class DashboardHomeScreen extends StatelessWidget {
                       final stats =
                           snapshot.data ?? {'total': 0, 'loggedIn': 0, 'absent': 0};
 
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatCard(
-                              title: 'Total Workers',
-                              value: stats['total'].toString(),
-                              icon: Icons.people,
-                              color: const Color(0xFF1E88E5),
-                            ),
-                          ),
-                          const SizedBox(width: 15),
-                          Expanded(
-                            child: _buildStatCard(
-                              title: 'Logged In',
-                              value: stats['loggedIn'].toString(),
-                              icon: Icons.check_circle,
-                              color: const Color(0xFF4CAF50),
-                            ),
-                          ),
-                          const SizedBox(width: 15),
-                          Expanded(
-                            child: _buildStatCard(
-                              title: 'Absent',
-                              value: stats['absent'].toString(),
-                              icon: Icons.cancel,
-                              color: const Color(0xFFF44336),
-                            ),
-                          ),
-                        ],
+                      // Replace the Row of EnhancedDashboardCard widgets with DashboardSummaryRow
+                      return DashboardSummaryRow(
+                        totalWorkers: stats['total'] ?? 0,
+                        loggedIn: stats['loggedIn'] ?? 0,
+                        absent: stats['absent'] ?? 0,
                       );
                     },
                   );
@@ -134,8 +110,8 @@ class DashboardHomeScreen extends StatelessWidget {
               Text(
                 'Quick Actions',
                 style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 20, // Increased font size
+                  fontWeight: FontWeight.w600, // Increased font weight
                   color: Colors.grey[800],
                 ),
               ),
@@ -147,7 +123,7 @@ class DashboardHomeScreen extends StatelessWidget {
                       (constraints.maxWidth / 2 - 15) *
                       1.2; // Maintain aspect ratio
                   double totalHeight =
-                      itemHeight * 4 + 15 * 3; // 4 rows with spacing
+                      itemHeight * 2 + 15 * 1; // 2 rows with spacing
 
                   return SizedBox(
                     height: totalHeight,
@@ -161,29 +137,14 @@ class DashboardHomeScreen extends StatelessWidget {
                       children: [
                         _buildQuickActionCard(
                           context,
-                          title: 'Login Status',
-                          icon: Icons.check_circle,
-                          color: const Color(0xFF4CAF50),
+                          title: 'Edit Attendance',
+                          icon: Icons.edit_calendar, // Filled icon
+                          color: const Color(0xFF43A047),
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const LoginStatusScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                        _buildQuickActionCard(
-                          context,
-                          title: 'Manage Advances',
-                          icon: Icons.approval,
-                          color: const Color(0xFF9C27B0),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const ManageAdvancesScreen(),
+                                builder: (context) => const WorkerAttendanceScreen(),
                               ),
                             );
                           },
@@ -191,14 +152,13 @@ class DashboardHomeScreen extends StatelessWidget {
                         _buildQuickActionCard(
                           context,
                           title: 'Advance Management',
-                          icon: Icons.account_balance_wallet,
-                          color: const Color(0xFFFFA726),
+                          icon: Icons.account_balance_wallet, // Filled icon
+                          color: const Color(0xFF8E24AA),
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    const AdvanceOnlyScreen(),
+                                builder: (context) => const AdvanceManagementScreen(),
                               ),
                             );
                           },
@@ -206,28 +166,13 @@ class DashboardHomeScreen extends StatelessWidget {
                         _buildQuickActionCard(
                           context,
                           title: 'Process Payroll',
-                          icon: Icons.payments_outlined,
+                          icon: Icons.payments, // Filled icon
                           color: const Color(0xFFE91E63),
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    const ProcessSalaryScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                        _buildQuickActionCard(
-                          context,
-                          title: 'Salary Paid',
-                          icon: Icons.receipt,
-                          color: const Color(0xFF4CAF50),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SalarySlipsScreen(),
+                                builder: (context) => const ProcessSalaryScreen(),
                               ),
                             );
                           },
@@ -235,8 +180,8 @@ class DashboardHomeScreen extends StatelessWidget {
                         _buildQuickActionCard(
                           context,
                           title: 'Reports',
-                          icon: Icons.bar_chart,
-                          color: const Color(0xFFAB47BC),
+                          icon: Icons.bar_chart, // Filled icon
+                          color: const Color(0xFF1976D2),
                           onTap: () {
                             Navigator.push(
                               context,
@@ -246,26 +191,12 @@ class DashboardHomeScreen extends StatelessWidget {
                             );
                           },
                         ),
-                        _buildQuickActionCard(
-                          context,
-                          title: 'Settings',
-                          icon: Icons.settings,
-                          color: const Color(0xFF26C6DA),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SettingsScreen(),
-                              ),
-                            );
-                          },
-                        ),
                       ],
                     ),
                   );
                 },
               ),
-              const SizedBox(height: 20), // Add bottom padding
+              const SizedBox(height: 24), // Uniform vertical spacing
             ],
           ),
         );
@@ -296,21 +227,6 @@ class DashboardHomeScreen extends StatelessWidget {
       'loggedIn': loggedInCount, // Use logged in count from login status
       'absent': absentCount > 0 ? absentCount.toInt() : 0,
     };
-  }
-
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return EnhancedDashboardCard(
-      title: title,
-      value: value,
-      icon: icon,
-      color: color,
-      isAnimated: true,
-    );
   }
 
   Widget _buildQuickActionCard(
@@ -371,74 +287,7 @@ class DashboardHomeScreen extends StatelessWidget {
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Worker Attendance Sessions',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E88E5),
-                  ),
-                ),
-                Icon(
-                  Icons.people,
-                  color: const Color(0xFF1E88E5),
-                  size: 24,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Consumer<LoginStatusProvider>(
-              builder: (context, loginStatusProvider, _) {
-                return FutureBuilder<List<LoginStatus>>(
-                  future: loginStatusProvider.getCurrentlyLoggedInWorkers(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (snapshot.hasError) {
-                      return Text('Error: ${snapshot.error}');
-                    }
-
-                    final loggedInWorkers = snapshot.data ?? [];
-
-                    if (loggedInWorkers.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'No workers currently logged in',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      );
-                    }
-
-                    return SizedBox(
-                      height: 200,
-                      child: ListView.builder(
-                        itemCount: loggedInWorkers.length,
-                        itemBuilder: (context, index) {
-                          final loginStatus = loggedInWorkers[index];
-                          return _buildWorkerSessionItem(context, loginStatus);
-                        },
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+      child: const _WorkerAttendanceSessionCard(), // Use the new stateful widget
     );
   }
 
@@ -512,6 +361,240 @@ class DashboardHomeScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _WorkerAttendanceSessionCard extends StatefulWidget {
+  const _WorkerAttendanceSessionCard();
+
+  @override
+  State<_WorkerAttendanceSessionCard> createState() => _WorkerAttendanceSessionCardState();
+}
+
+class _WorkerAttendanceSessionCardState extends State<_WorkerAttendanceSessionCard> {
+  int _page = 0;
+  List<Attendance> _todayAttendance = [];
+  bool _loadingAttendance = false;
+  
+  // Add state variables for search, filter, and sort
+  String _searchQuery = "";
+  String _filter = "ALL"; // ALL | PRESENT | ABSENT | LOGGED_IN
+  String _sort = "DEFAULT"; // DEFAULT | NAME_AZ | NAME_ZA | STATUS
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadTodayAttendance());
+  }
+
+  Future<void> _loadTodayAttendance() async {
+    setState(() => _loadingAttendance = true);
+    final provider = Provider.of<AttendanceProvider>(context, listen: false);
+    final list = await provider.getTodayAttendancePaged(page: _page);
+    setState(() {
+      _todayAttendance = list;
+      _loadingAttendance = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Worker Attendance Sessions',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E88E5),
+                ),
+              ),
+              Icon(
+                Icons.people, // Filled icon
+                color: const Color(0xFF1E88E5),
+                size: 24,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Add UI controls for search, filter, and sort
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: const InputDecoration(
+                    hintText: "Search worker...",
+                    prefixIcon: Icon(Icons.search), // Filled icon
+                  ),
+                  onChanged: (value) {
+                    setState(() => _searchQuery = value.trim().toLowerCase());
+                    _loadTodayAttendance();
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              PopupMenuButton<String>(
+                onSelected: (val) {
+                  setState(() => _filter = val);
+                  _loadTodayAttendance();
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(value: "ALL", child: Text("All")),
+                  const PopupMenuItem(value: "PRESENT", child: Text("Present")),
+                  const PopupMenuItem(value: "LOGGED_IN", child: Text("Logged In")),
+                  const PopupMenuItem(value: "ABSENT", child: Text("Absent")),
+                ],
+                child: const Icon(Icons.filter_alt), // Filled icon
+              ),
+              const SizedBox(width: 10),
+              PopupMenuButton<String>(
+                onSelected: (val) {
+                  setState(() => _sort = val);
+                  _loadTodayAttendance();
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(value: "DEFAULT", child: Text("Default")),
+                  const PopupMenuItem(value: "NAME_AZ", child: Text("Name A-Z")),
+                  const PopupMenuItem(value: "NAME_ZA", child: Text("Name Z-A")),
+                  const PopupMenuItem(value: "STATUS", child: Text("Status Order")),
+                ],
+                child: const Icon(Icons.sort), // Filled icon
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _loadingAttendance
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
+                    ..._todayAttendance.map((att) {
+                      final timeIn = att.inTime.isNotEmpty
+                          ? DateFormat('hh:mm a').format(DateFormat("HH:mm:ss").parse(att.inTime))
+                          : '--';
+
+                      final timeOut = att.outTime.isNotEmpty
+                          ? DateFormat('hh:mm a').format(DateFormat("HH:mm:ss").parse(att.outTime))
+                          : '--';
+
+                      String status;
+                      Color color;
+
+                      if (!att.present) {
+                        status = 'Absent';
+                        color = Colors.red;
+                      } else if (att.present && att.outTime.isEmpty) {
+                        status = 'Logged In';
+                        color = Colors.orange;
+                      } else {
+                        status = 'Present';
+                        color = Colors.green;
+                      }
+
+                      return FutureBuilder<User?>(
+                        future: Provider.of<UserProvider>(context, listen: false).getUser(att.workerId),
+                        builder: (context, snapshot) {
+                          final workerName = snapshot.data?.name ?? 'Unknown Worker';
+                          
+                          // Apply filtering based on search query and filter selection
+                          bool matchesSearch = _searchQuery.isEmpty || workerName.toLowerCase().contains(_searchQuery);
+                          bool matchesFilter = true;
+                          
+                          if (_filter == "PRESENT") {
+                            matchesFilter = att.present && att.outTime.isNotEmpty;
+                          } else if (_filter == "LOGGED_IN") {
+                            matchesFilter = att.present && att.outTime.isEmpty;
+                          } else if (_filter == "ABSENT") {
+                            matchesFilter = !att.present;
+                          }
+                          
+                          // If item doesn't match filters, don't show it
+                          if (!matchesSearch || !matchesFilter) {
+                            return const SizedBox.shrink(); // Hide this item
+                          }
+                          
+                          return ListTile(
+                            onTap: () async {
+                              final changed = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => WorkerAttendanceScreen(
+                                    preselectedWorker: User(
+                                      id: att.workerId,
+                                      name: workerName,
+                                      phone: '', // Required but not used in this context
+                                      password: '', // Required but not used in this context
+                                      role: 'worker',
+                                      wage: 0.0, // Required but not used in this context
+                                      joinDate: '', // Required but not used in this context
+                                    ),
+                                  ),
+                                ),
+                              );
+
+                              // If attendance was changed, refresh the dashboard
+                              if (changed == true) {
+                                _loadTodayAttendance();
+                              }
+                            },
+                            leading: CircleAvatar(
+                              backgroundColor: color.withOpacity(.2),
+                              child: Icon(
+                                Icons.person, // Filled icon
+                                color: color,
+                              ),
+                            ),
+                            title: Text(workerName),
+                            subtitle: Text("In: $timeIn   |   Out: $timeOut"),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: color.withOpacity(.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(status, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+                            ),
+                          );
+                        }
+                      );
+                    }).where((widget) => widget is! SizedBox), // Remove hidden items
+
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton(
+                          onPressed: _page == 0
+                              ? null
+                              : () {
+                                  setState(() => _page--);
+                                  _loadTodayAttendance();
+                                },
+                          child: const Text("<< Prev"),
+                        ),
+                        Text("Page ${_page + 1}",
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        TextButton(
+                          onPressed: _todayAttendance.length < 5
+                              ? null
+                              : () {
+                                  setState(() => _page++);
+                                  _loadTodayAttendance();
+                                },
+                          child: const Text("Next >>"),
+                        ),
+                      ],
+                    )
+                  ],
+                ),
+        ],
+      ),
     );
   }
 }

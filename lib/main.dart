@@ -14,6 +14,9 @@ import 'services/notification_service.dart';
 import 'services/database_updater.dart';
 import 'services/location_table_updater.dart'; // Add this import
 import 'screens/splash_screen.dart';
+import 'screens/my_attendance_screen.dart';
+import 'screens/my_salary_screen.dart';
+import 'screens/my_advance_screen.dart';
 import 'utils/logger.dart';
 import 'theme/app_theme.dart';
 
@@ -108,11 +111,30 @@ class MyApp extends StatelessWidget {
       builder: (context, themeProvider, child) {
         return MaterialApp(
           title: 'Worker Management App',
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
+          theme: AppTheme.lightTheme.copyWith(
+            pageTransitionsTheme: const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+              },
+            ),
+          ),
+          darkTheme: AppTheme.darkTheme.copyWith(
+            pageTransitionsTheme: const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+              },
+            ),
+          ),
           themeMode: themeProvider.themeMode,
           home: const SplashScreen(),
           debugShowCheckedModeBanner: false,
+          routes: {
+            '/my_attendance': (context) => const MyAttendanceScreen(),
+            '/my_salary': (context) => const MySalaryScreen(),
+            '/my_advance': (context) => const MyAdvanceScreen(),
+          },
         );
       },
     );

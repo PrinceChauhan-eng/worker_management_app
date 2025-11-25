@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/theme_provider.dart';
+import 'live_clock.dart'; // Import the LiveClock widget
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final List<Widget>? actions;
   final bool showThemeToggle;
   final VoidCallback? onLeadingPressed;
+  final bool showLiveClock; // Add option to show live clock
 
   const CustomAppBar({
     super.key,
@@ -15,6 +17,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.actions,
     this.showThemeToggle = true,
     this.onLeadingPressed,
+    this.showLiveClock = false, // Default to false to maintain backward compatibility
   });
 
   @override
@@ -44,12 +47,27 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     }
 
     return AppBar(
-      title: Text(
-        title,
-        style: GoogleFonts.poppins(
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      title: showLiveClock
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const LiveClock(), // Add the live clock when requested
+              ],
+            )
+          : Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
       leading: onLeadingPressed != null
           ? IconButton(
               icon: const Icon(Icons.arrow_back),

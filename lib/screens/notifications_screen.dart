@@ -7,7 +7,6 @@ import '../providers/notification_provider.dart';
 import '../providers/user_provider.dart';
 import '../widgets/custom_app_bar.dart';
 import '../providers/base_provider.dart';
-import 'worker_dashboard/worker_dashboard_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -72,15 +71,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     // Handle deep linking based on notification type
-    if (notification.type == "attendance") {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const WorkerDashboardScreen(openAttendanceDetails: true),
-        ),
-      );
+    switch (notification.type) {
+      case "attendance":
+        // Navigate to My Attendance screen
+        Navigator.pushNamed(context, '/my_attendance');
+        break;
+      case "salary":
+        // Navigate to My Salary screen
+        Navigator.pushNamed(context, '/my_salary');
+        break;
+      case "advance":
+        // Navigate to My Advance screen
+        Navigator.pushNamed(context, '/my_advance');
+        break;
+      case "system":
+        // For system notifications, stay on notifications screen
+        // or navigate to a specific system info screen if needed
+        break;
+      default:
+        // Default behavior - no navigation
+        break;
     }
-    // Add other notification types as needed
   }
 
   @override

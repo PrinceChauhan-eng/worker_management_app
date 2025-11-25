@@ -79,6 +79,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       child: Scaffold(
         appBar: CustomAppBar(
           title: 'Welcome, $adminName 👨‍💼',
+          showLiveClock: true, // Enable live clock
           actions: [
             Consumer<NotificationProvider>(
               builder: (context, notificationProvider, child) {

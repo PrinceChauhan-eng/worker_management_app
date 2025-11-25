@@ -4,6 +4,7 @@ import '../services/attendance_service.dart';
 import '../services/attendance_log_service.dart';
 import '../services/schema_refresher.dart';
 import 'base_provider.dart';
+import 'package:intl/intl.dart'; // Add this import for date formatting
 
 class AttendanceProvider extends BaseProvider {
   final AttendanceService _attendanceService = AttendanceService();
@@ -386,6 +387,31 @@ class AttendanceProvider extends BaseProvider {
     } finally {
       // Reset loading flag
       _isLoadingToday = false;
+    }
+  }
+
+  /// Get today's attendance with pagination
+  Future<List<Attendance>> getTodayAttendancePaged({
+    required int page,
+    int limit = 5,
+  }) async {
+    try {
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
+      final attendancesData = await _attendanceService.getAttendancePaged(
+        date: today,
+        limit: limit,
+        offset: page * limit,
+      );
+      return attendancesData.map((e) => Attendance.fromMap(e)).toList();
+    } catch (e) {
+      await _schemaRefresher.tryFixSchemaError(e);
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
+      final attendancesData = await _attendanceService.getAttendancePaged(
+        date: today,
+        limit: limit,
+        offset: page * limit,
+      );
+      return attendancesData.map((e) => Attendance.fromMap(e)).toList();
     }
   }
 

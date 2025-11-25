@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/user_provider.dart';
 import '../services/session_manager.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_button.dart';
 import 'login_screen.dart';
-import 'cloud_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -20,6 +20,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isLoading = false;
   String _newPassword = '';
   String _confirmPassword = '';
+  String selectedLanguage = "en"; // Add language selector state
+  late SharedPreferences prefs; // Add SharedPreferences
+
+  @override
+  void initState() {
+    super.initState();
+    _initSharedPreferences(); // Initialize SharedPreferences
+  }
+
+  _initSharedPreferences() async {
+    prefs = await SharedPreferences.getInstance();
+    selectedLanguage = prefs.getString("app_language") ?? "en";
+    setState(() {}); // Update UI with loaded language
+  }
 
   _changeAdminPassword() async {
     if (_newPassword.isEmpty || _confirmPassword.isEmpty) {
@@ -201,11 +215,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 30),
+            // Edit Admin Profile
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16), // Updated to consistent radius
+              ),
+              elevation: 3, // Updated elevation
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20), // Uniform padding
+                leading: const Icon(
+                  Icons.person, // Filled icon
+                  color: Color(0xFF1E88E5), // Royal Blue
+                ),
+                title: Text(
+                  'Edit Admin Profile',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  'Update your profile information',
+                  style: GoogleFonts.poppins(),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios), // Filled icon
+                onTap: () {
+                  // Future implementation for profile editing
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Profile editing feature coming soon!'),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
             // Change Password Section (Dynamic based on user role)
             Card(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(16), // Updated to consistent radius
               ),
+              elevation: 3, // Updated elevation
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -230,9 +279,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         labelText: 'New Password',
                         labelStyle: GoogleFonts.poppins(),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12), // Updated to consistent radius
                         ),
-                        prefixIcon: const Icon(Icons.lock),
+                        prefixIcon: const Icon(Icons.lock), // Filled icon
                       ),
                     ),
                     const SizedBox(height: 15),
@@ -247,9 +296,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         labelText: 'Confirm Password',
                         labelStyle: GoogleFonts.poppins(),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12), // Updated to consistent radius
                         ),
-                        prefixIcon: const Icon(Icons.lock),
+                        prefixIcon: const Icon(Icons.lock), // Filled icon
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -263,11 +312,112 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 20),
+            // Notification Settings
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16), // Updated to consistent radius
+              ),
+              elevation: 3, // Updated elevation
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20), // Uniform padding
+                leading: const Icon(
+                  Icons.notifications, // Filled icon
+                  color: Color(0xFF1E88E5), // Royal Blue
+                ),
+                title: Text(
+                  'Notification Settings',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  'Manage notification preferences',
+                  style: GoogleFonts.poppins(),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios), // Filled icon
+                onTap: () {
+                  // Future implementation for notification settings
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Notification settings feature coming soon!'),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Select Theme
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16), // Updated to consistent radius
+              ),
+              elevation: 3, // Updated elevation
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20), // Uniform padding
+                leading: const Icon(
+                  Icons.brightness_4, // Filled icon
+                  color: Color(0xFF1E88E5), // Royal Blue
+                ),
+                title: Text(
+                  'Select Theme',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  'Light / Dark / System',
+                  style: GoogleFonts.poppins(),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios), // Filled icon
+                onTap: () {
+                  // Future implementation for theme selection
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Theme selection feature coming soon!'),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+            // 🌎 Language Section
+            Text(
+              "Language",
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12), // Updated to consistent radius
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: selectedLanguage,
+                  items: const [
+                    DropdownMenuItem(value: "en", child: Text("English")),
+                    DropdownMenuItem(value: "hi", child: Text("Hindi")),
+                    DropdownMenuItem(value: "gu", child: Text("Gujarati")),
+                  ],
+                  onChanged: (value) {
+                    setState(() => selectedLanguage = value!);
+                    prefs.setString("app_language", value!);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
             // Reset All Data
             Card(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(16), // Updated to consistent radius
               ),
+              elevation: 3, // Updated elevation
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -299,104 +449,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-            // Currency Settings
-            Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: ListTile(
-                leading: const Icon(
-                  Icons.currency_rupee,
-                  color: Color(0xFF1E88E5), // Royal Blue
-                ),
-                title: Text(
-                  'Currency',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                subtitle: Text(
-                  '₹ Indian Rupee (Default)',
-                  style: GoogleFonts.poppins(),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {
-                  // Future implementation for currency settings
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Currency settings feature coming soon!'),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Export/Backup Data
-            Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: ListTile(
-                leading: const Icon(
-                  Icons.backup,
-                  color: Color(0xFF1E88E5), // Royal Blue
-                ),
-                title: Text(
-                  'Export/Backup Data',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                subtitle: Text(
-                  'Create backup of all data',
-                  style: GoogleFonts.poppins(),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {
-                  // Future implementation for export/backup
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Export/Backup feature coming soon!'),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Cloud Storage Settings
-            Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: ListTile(
-                leading: const Icon(
-                  Icons.cloud,
-                  color: Color(0xFF1E88E5), // Royal Blue
-                ),
-                title: Text(
-                  'Cloud Storage',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                subtitle: Text(
-                  'Manage cloud storage and synchronization',
-                  style: GoogleFonts.poppins(),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {
-                  // Navigate to cloud settings screen
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CloudSettingsScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
-
           ],
         ),
       ),

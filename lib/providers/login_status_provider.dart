@@ -2,7 +2,7 @@ import 'package:intl/intl.dart'; // Fix the import
 import '../models/login_status.dart';
 import '../models/user.dart';
 import '../services/login_service.dart';
-import '../services/users_service.dart'; // Add this import
+// Add this import
 import '../services/location_service.dart'; // Add this import
 import '../services/schema_refresher.dart'; // Add this import
 import '../utils/logger.dart';
@@ -10,7 +10,6 @@ import 'base_provider.dart';
 
 class LoginStatusProvider extends BaseProvider {
   final LoginService _loginService = LoginService();
-  final UsersService _usersService = UsersService(); // Add this
   final SchemaRefresher _schemaRefresher = SchemaRefresher(); // Add this
   List<LoginStatus> _loginStatuses = [];
   LoginStatus? _todayLoginStatus;
@@ -206,7 +205,7 @@ class LoginStatusProvider extends BaseProvider {
       
       // Get current location with address (with timeout)
       final locationService = LocationService();
-      Map<String, dynamic>? locationData;
+      LocationData? locationData;
       
       try {
         // Add timeout to the location request
@@ -241,9 +240,9 @@ class LoginStatusProvider extends BaseProvider {
         // Add new location data only if we got it
         if (locationData != null) {
           statusData.addAll({
-            'login_latitude': locationData['latitude'],
-            'login_longitude': locationData['longitude'],
-            'login_address': locationData['address'],
+            'login_latitude': locationData.latitude,
+            'login_longitude': locationData.longitude,
+            'login_address': locationData.address,
           });
         }
         
@@ -261,9 +260,9 @@ class LoginStatusProvider extends BaseProvider {
         // Add location data only if we got it
         if (locationData != null) {
           statusData.addAll({
-            'login_latitude': locationData['latitude'],
-            'login_longitude': locationData['longitude'],
-            'login_address': locationData['address'],
+            'login_latitude': locationData.latitude,
+            'login_longitude': locationData.longitude,
+            'login_address': locationData.address,
           });
         }
         
@@ -284,7 +283,7 @@ class LoginStatusProvider extends BaseProvider {
       // Create message based on whether we got location data
       String message = 'Login successful! Attendance marked as present.';
       if (locationData != null) {
-        message += '\nLocation: ${locationData['address']}';
+        message += '\nLocation: ${locationData.address}';
       } else {
         message += '\nLocation data not available.';
       }
@@ -309,7 +308,7 @@ class LoginStatusProvider extends BaseProvider {
         
         // Get current location with address (with timeout)
         final locationService = LocationService();
-        Map<String, dynamic>? locationData;
+        LocationData? locationData;
         
         try {
           // Add timeout to the location request
@@ -344,9 +343,9 @@ class LoginStatusProvider extends BaseProvider {
           // Add new location data only if we got it
           if (locationData != null) {
             statusData.addAll({
-              'login_latitude': locationData['latitude'],
-              'login_longitude': locationData['longitude'],
-              'login_address': locationData['address'],
+              'login_latitude': locationData.latitude,
+              'login_longitude': locationData.longitude,
+              'login_address': locationData.address,
             });
           }
           
@@ -364,9 +363,9 @@ class LoginStatusProvider extends BaseProvider {
           // Add location data only if we got it
           if (locationData != null) {
             statusData.addAll({
-              'login_latitude': locationData['latitude'],
-              'login_longitude': locationData['longitude'],
-              'login_address': locationData['address'],
+              'login_latitude': locationData.latitude,
+              'login_longitude': locationData.longitude,
+              'login_address': locationData.address,
             });
           }
           
@@ -387,7 +386,7 @@ class LoginStatusProvider extends BaseProvider {
         // Create message based on whether we got location data
         String message = 'Login successful! Attendance marked as present.';
         if (locationData != null) {
-          message += '\nLocation: ${locationData['address']}';
+          message += '\nLocation: ${locationData.address}';
         } else {
           message += '\nLocation data not available.';
         }
@@ -427,7 +426,7 @@ class LoginStatusProvider extends BaseProvider {
 
       // Try to get current location with address for logout (but don't block if it fails)
       final locationService = LocationService();
-      Map<String, dynamic>? locationData;
+      LocationData? locationData;
       
       try {
         // Add timeout to the location request
@@ -457,9 +456,9 @@ class LoginStatusProvider extends BaseProvider {
       // Add logout location data only if we got it
       if (locationData != null) {
         updatedStatusData.addAll({
-          'logout_latitude': locationData['latitude'],
-          'logout_longitude': locationData['longitude'],
-          'logout_address': locationData['address'],
+          'logout_latitude': locationData.latitude,
+          'logout_longitude': locationData.longitude,
+          'logout_address': locationData.address,
         });
       }
 
@@ -478,7 +477,7 @@ class LoginStatusProvider extends BaseProvider {
       // Create message based on whether we got location data
       String message = 'Logout successful!';
       if (locationData != null) {
-        message += '\nLocation: ${locationData['address']}';
+        message += '\nLocation: ${locationData.address}';
       } else {
         message += '\nLocation data not available.';
       }
@@ -510,7 +509,7 @@ class LoginStatusProvider extends BaseProvider {
 
         // Try to get current location with address for logout (but don't block if it fails)
         final locationService = LocationService();
-        Map<String, dynamic>? locationData;
+        LocationData? locationData;
         
         try {
           // Add timeout to the location request
@@ -540,9 +539,9 @@ class LoginStatusProvider extends BaseProvider {
         // Add logout location data only if we got it
         if (locationData != null) {
           updatedStatusData.addAll({
-            'logout_latitude': locationData['latitude'],
-            'logout_longitude': locationData['longitude'],
-            'logout_address': locationData['address'],
+            'logout_latitude': locationData.latitude,
+            'logout_longitude': locationData.longitude,
+            'logout_address': locationData.address,
           });
         }
 
@@ -561,7 +560,7 @@ class LoginStatusProvider extends BaseProvider {
         // Create message based on whether we got location data
         String message = 'Logout successful!';
         if (locationData != null) {
-          message += '\nLocation: ${locationData['address']}';
+          message += '\nLocation: ${locationData.address}';
         } else {
           message += '\nLocation data not available.';
         }

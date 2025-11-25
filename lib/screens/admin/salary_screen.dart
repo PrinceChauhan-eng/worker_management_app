@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../process_salary_screen.dart';
-import '../manage_advances_screen.dart';
+import 'automated_salary_screen.dart';
 import '../salary_advance_screen.dart';
 import '../reports_screen.dart';
-import 'automated_salary_screen.dart';
+import 'advance_management_screen.dart';
+import '../process_salary_screen.dart';
 
 class SalaryScreen extends StatelessWidget {
   const SalaryScreen({super.key});
@@ -73,7 +73,7 @@ class SalaryScreen extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
-                                  const ManageAdvancesScreen(),
+                                  const AdvanceManagementScreen(), // Updated to use new screen
                             ),
                           );
                         },

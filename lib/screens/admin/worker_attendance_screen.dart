@@ -14,6 +14,7 @@ import '../../widgets/custom_app_bar.dart';
 import '../../services/notifications_service.dart';
 import '../../services/attendance_service.dart';
 import '../../utils/logger.dart';
+import '../../widgets/live_clock.dart'; // Import LiveClock
 import 'worker_attendance_timeline_screen.dart';
 
 class WorkerAttendanceScreen extends StatefulWidget {
@@ -35,7 +36,23 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
     // Set the preselected worker if provided
     if (widget.preselectedWorker != null) {
       _selectedWorker = widget.preselectedWorker;
+      
+      // Auto-load attendance for selected worker and today's date
+      if (_selectedWorker != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _loadAttendanceForSelectedWorker();
+        });
+      }
     }
+  }
+
+  Future<void> _loadAttendanceForSelectedWorker() async {
+    final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
+    await attendanceProvider.loadAttendancesByWorkerIdAndDate(
+      _selectedWorker!.id!,
+      DateFormat('yyyy-MM-dd').format(_selectedDate),
+    );
+    setState(() {});
   }
 
   @override
@@ -54,6 +71,9 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Add live clock header
+            const LiveClock(),
+            const SizedBox(height: 20),
             Text(
               'Mark Attendance',
               style: GoogleFonts.poppins(
@@ -78,8 +98,8 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                 border: Border.all(color: Colors.grey.shade300),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withValues(alpha: 0.1),
-                    blurRadius: 8,
+                    color: Colors.black.withValues(alpha: .08), // Updated shadow
+                    blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
                 ],
@@ -110,7 +130,7 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                     });
                   },
                   icon: const Icon(
-                    Icons.arrow_drop_down,
+                    Icons.arrow_drop_down, // Filled icon
                     color: Color(0xFF1E88E5),
                   ),
                 ),
@@ -128,8 +148,8 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                   border: Border.all(color: Colors.grey.shade300),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withValues(alpha: 0.1),
-                      blurRadius: 8,
+                      color: Colors.black.withValues(alpha: .08), // Updated shadow
+                      blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
                   ],
@@ -161,7 +181,7 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                     ),
                     ElevatedButton.icon(
                       onPressed: _selectDate,
-                      icon: const Icon(Icons.calendar_today, size: 18),
+                      icon: const Icon(Icons.calendar_today, size: 18), // Filled icon
                       label: Text('Change Date', style: GoogleFonts.poppins()),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1E88E5),
@@ -181,7 +201,7 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () => _markAttendance('present'),
-                      icon: const Icon(Icons.check_circle, size: 20),
+                      icon: const Icon(Icons.check_circle, size: 20), // Filled icon
                       label: Text(
                         'Mark Present',
                         style: GoogleFonts.poppins(
@@ -203,7 +223,7 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () => _markAttendance('absent'),
-                      icon: const Icon(Icons.cancel, size: 20),
+                      icon: const Icon(Icons.cancel, size: 20), // Filled icon
                       label: Text(
                         'Mark Absent',
                         style: GoogleFonts.poppins(
@@ -225,7 +245,7 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () => _viewTimeline(),
-                      icon: const Icon(Icons.timeline, size: 20),
+                      icon: const Icon(Icons.timeline, size: 20), // Filled icon
                       label: Text(
                         'View Timeline',
                         style: GoogleFonts.poppins(
@@ -247,6 +267,52 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
           ],
         ),
       ),
+      floatingActionButton: _selectedWorker == null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _showEditAttendanceOptions(), // Show options to edit attendance
+              icon: const Icon(Icons.edit), // Filled icon
+              label: const Text("Edit Attendance"),
+            ),
+    );
+  }
+
+  void _showEditAttendanceOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.check_circle, color: Colors.green), // Filled icon
+                title: const Text('Mark Present'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _markAttendance('present');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel, color: Colors.red), // Filled icon
+                title: const Text('Mark Absent'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _markAttendance('absent');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.timeline, color: Colors.blue), // Filled icon
+                title: const Text('View Timeline'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _viewTimeline();
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -264,12 +330,12 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
     }
   }
 
-  // Show error message
+  // Show error message with center top toast
   void _showError(String message) {
     Fluttertoast.showToast(
       msg: message,
       toastLength: Toast.LENGTH_SHORT,
-      gravity: ToastGravity.BOTTOM,
+      gravity: ToastGravity.TOP, // Changed to center top
       backgroundColor: Colors.red,
     );
   }
@@ -404,11 +470,12 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
       // Send notification to worker about attendance update
       await _sendAttendanceNotification(_selectedWorker!, status, dateStr);
 
-      // Show success message
+      // Show success message with center top toast
       Fluttertoast.showToast(
         msg:
             'Marked as ${status.toUpperCase()} for ${DateFormat('MMM dd, yyyy').format(_selectedDate)}',
         backgroundColor: status == 'present' ? Colors.green : Colors.red,
+        gravity: ToastGravity.TOP, // Changed to center top
       );
 
       // Refresh the UI
@@ -416,11 +483,15 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
       
       // Refresh login status to ensure dashboard is updated
       loginStatusProvider.refreshToday();
+      
+      // Return success to indicate attendance was changed
+      Navigator.pop(context, true);
     } catch (e) {
       Logger.error('Error marking attendance: $e', e);
       Fluttertoast.showToast(
         msg: 'Failed to save attendance. Please try again later.',
         backgroundColor: Colors.red,
+        gravity: ToastGravity.TOP, // Changed to center top
       );
     }
   }

@@ -282,15 +282,29 @@ class _WorkerAttendanceTimelineScreenState
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                              if (log.locationAddress != null)
-                                Text(
-                                  log.locationAddress!,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                              // Show location information
+                              if (log.locationAddress != null || (log.locationLatitude != null && log.locationLongitude != null))
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.location_on,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        log.locationAddress ??
+                                            '(${log.locationLatitude?.toStringAsFixed(6)}, ${log.locationLongitude?.toStringAsFixed(6)})',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                             ],
                           ),

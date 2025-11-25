@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'dart:async';
 
 import '../../providers/user_provider.dart';
 import '../../providers/login_status_provider.dart';
@@ -13,8 +14,10 @@ import '../../models/attendance.dart';
 import '../../utils/logger.dart';
 import '../../services/session_manager.dart';
 import '../../services/route_guard.dart';
+import '../../services/location_service.dart';
 import '../../widgets/enhanced_attendance_card.dart';
 import '../../widgets/shimmer_loading.dart';
+import '../../widgets/live_clock.dart'; // Import the LiveClock widget
 import '../login_screen.dart';
 
 // Import screens for quick actions
@@ -44,6 +47,15 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
   DateTime? _lastUpdated;
   RealtimeChannel? _attendanceChannel;
   RealtimeChannel? _loginStatusChannel;
+
+  // Add new state variables for Phase E
+  bool _isLoggedIn = false;
+  String _inTime = "";
+  String _outTime = "";
+  
+  // Add timer variables for Phase E3
+  Duration _workDuration = Duration.zero;
+  Timer? _workTimer;
 
   final String _today =
       DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
@@ -111,6 +123,8 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
     // Unsubscribe from real-time updates
     _attendanceChannel?.unsubscribe();
     _loginStatusChannel?.unsubscribe();
+    // Stop work timer when screen is closed (Phase E3)
+    _stopWorkTimer();
     super.dispose();
   }
 
@@ -153,6 +167,18 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
     final monthAtt =
         all.where((a) => a.workerId == workerId && a.date.startsWith(_month)).toList();
 
+    // 5️⃣ Set attendance state for Phase E
+    _isLoggedIn = todayAtt.present && todayAtt.outTime.isEmpty;
+    _inTime = todayAtt.inTime;
+    _outTime = todayAtt.outTime;
+    
+    // 6️⃣ Start or stop work timer based on login state (Phase E3)
+    if (_isLoggedIn && _inTime.isNotEmpty) {
+      _startWorkTimer();
+    } else {
+      _stopWorkTimer();
+    }
+
     if (!mounted) return;
     setState(() {
       todayLoginStatus = todayLogin?.toMap();
@@ -168,6 +194,46 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
     }
   }
 
+  // Timer methods for Phase E3
+  void _startWorkTimer() {
+    _stopWorkTimer();
+    
+    // Check if user is logged in and has valid login time
+    if (_isLoggedIn && _inTime.isNotEmpty) {
+      try {
+        final now = DateTime.now().toLocal();
+        // Parse the login time correctly
+        final loginDateTime = DateFormat("HH:mm:ss").parse(_inTime);
+        // Create a DateTime object for today with the login time
+        final loginDateTimeToday = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          loginDateTime.hour,
+          loginDateTime.minute,
+          loginDateTime.second,
+        ).toLocal();
+
+        _workDuration = now.difference(loginDateTimeToday);
+        _workTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+          setState(() {
+            _workDuration = DateTime.now().toLocal().difference(loginDateTimeToday);
+          });
+        });
+      } catch (e) {
+        Logger.error('Error calculating work duration: $e', e);
+        // Stop timer if there's an error
+        _stopWorkTimer();
+      }
+    } else {
+      _stopWorkTimer();
+    }
+  }
+
+  void _stopWorkTimer() {
+    _workTimer?.cancel();
+  }
+
   Future<void> _handleLogin(int workerId) async {
     if (_isProcessing) return;
     setState(() => _isProcessing = true);
@@ -177,10 +243,28 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
           Provider.of<AttendanceProvider>(context, listen: false);
       final loginStatusProvider =
           Provider.of<LoginStatusProvider>(context, listen: false);
+      final locationService = LocationService();
 
       final String todayDate =
           DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
       final String nowTime = Logger.nowTime(); // "HH:mm:ss"
+
+      // Capture location data
+      String? locationAddress;
+      double? locationLatitude;
+      double? locationLongitude;
+      
+      try {
+        final locationData = await locationService.getCurrentLocationWithAddress();
+        if (locationData != null) {
+          locationAddress = locationData.address;
+          locationLatitude = locationData.latitude;
+          locationLongitude = locationData.longitude;
+        }
+      } catch (e) {
+        Logger.error('Error getting location data: $e', e);
+        // Continue without location data if there's an error
+      }
 
       // find or create today's attendance
       Attendance? att = attendanceProvider.attendances.firstWhere(
@@ -235,11 +319,27 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
         success = await attendanceProvider.updateAttendance(att);
       }
 
+      // Also mark login in the attendance service with location data
+      if (success) {
+        try {
+          await attendanceProvider.markLogin(
+            workerId: workerId,
+            inTime: nowTime,
+            address: locationAddress,
+            latitude: locationLatitude,
+            longitude: locationLongitude,
+          );
+        } catch (e) {
+          Logger.error('Error marking login with location: $e', e);
+          // Continue even if location marking fails
+        }
+      }
+
       if (success) {
         await loginStatusProvider.refreshToday(); // keep worker dashboard in sync
 
         Fluttertoast.showToast(
-          msg: "Login marked at $nowTime",
+          msg: "Login marked at $nowTime${locationAddress != null ? ' at $locationAddress' : ''}",
           backgroundColor: Colors.green,
         );
         setState(() {}); // refresh card
@@ -331,6 +431,40 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
 
       final success = await attendanceProvider.updateAttendance(att);
 
+      // Also mark logout in the attendance service with location data
+      if (success) {
+        try {
+          // Capture location data for logout
+          String? logoutAddress;
+          double? logoutLatitude;
+          double? logoutLongitude;
+          
+          try {
+            final locationService = LocationService();
+            final locationData = await locationService.getCurrentLocationWithAddress();
+            if (locationData != null) {
+              logoutAddress = locationData.address;
+              logoutLatitude = locationData.latitude;
+              logoutLongitude = locationData.longitude;
+            }
+          } catch (e) {
+            Logger.error('Error getting logout location data: $e', e);
+            // Continue without location data if there's an error
+          }
+          
+          await attendanceProvider.markLogout(
+            workerId: workerId,
+            outTime: nowTime,
+            address: logoutAddress,
+            latitude: logoutLatitude,
+            longitude: logoutLongitude,
+          );
+        } catch (e) {
+          Logger.error('Error marking logout with location: $e', e);
+          // Continue even if location marking fails
+        }
+      }
+
       if (success) {
         await loginStatusProvider.refreshToday();
 
@@ -414,6 +548,8 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
               "Welcome, ${user?.name ?? 'Worker'}",
               style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 2),
+            const LiveClock(), // Add the live clock
             if (_lastUpdated != null) ...[
               const SizedBox(height: 4),
               Text(
@@ -429,7 +565,7 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
+            icon: const Icon(Icons.logout, color: Colors.white), // Filled icon
             onPressed: _handleAppLogout,
           ),
           GestureDetector(
@@ -441,7 +577,7 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
               children: [
                 const Padding(
                   padding: EdgeInsets.all(14),
-                  child: Icon(Icons.notifications, size: 26),
+                  child: Icon(Icons.notifications, size: 26), // Filled icon
                 ),
                 if (notificationProv.unreadCount > 0)
                   Positioned(
@@ -488,9 +624,35 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
                       child: _buildTodayStatusCard(),
                     ),
                     const SizedBox(height: 20),
+                    // Add work duration display (Phase E3)
+                    if (_isLoggedIn)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 15),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(.12),
+                            borderRadius: BorderRadius.circular(16), // Updated to consistent radius
+                          ),
+                          child: Text(
+                            "⏳ Working since "
+                            "${_workDuration.inHours.toString().padLeft(2,'0')}h : "
+                            "${(_workDuration.inMinutes % 60).toString().padLeft(2,'0')}m : "
+                            "${(_workDuration.inSeconds % 60).toString().padLeft(2,'0')}s",
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
                     _buildMonthlySummary(),
                     const SizedBox(height: 20),
-                    _buildRecentAttendance(),
+                    _buildRecentAttendance(), // Updated with colored attendance tags
                     const SizedBox(height: 20),
                     Text("Quick Actions",
                       style: GoogleFonts.poppins(
@@ -605,7 +767,9 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
 
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16), // Updated to consistent radius
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -654,29 +818,52 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
           bool present = att["present"] == true;
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(18), // Increased padding
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16), // Updated to consistent radius
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .08), // Updated shadow
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Row(
               children: [
                 Icon(
-                  present ? Icons.check_circle : Icons.cancel,
+                  present ? Icons.check_circle : Icons.cancel, // Filled icon
                   color: present ? Colors.green : Colors.red,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    att["date"],
-                    style: GoogleFonts.poppins(fontSize: 15),
-                  ),
-                ),
-                Text(
-                  present ? "Present" : "Absent",
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
-                    color: present ? Colors.green : Colors.red,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        att["date"],
+                        style: GoogleFonts.poppins(
+                          fontSize: 16, // Increased font size
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // Add colored attendance tag
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: present ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE), // Green or red background
+                          borderRadius: BorderRadius.circular(8), // Updated to consistent radius
+                        ),
+                        child: Text(
+                          present ? "Present" : "Absent",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: present ? const Color(0xFF4CAF50) : const Color(0xFFF44336), // Green or red text
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -689,12 +876,12 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
 
   Widget _buildQuickActions(BuildContext context) {
     final items = [
-      ("My Attendance", Icons.calendar_month, const MyAttendanceScreen()),
-      ("My Salary", Icons.payments, const MySalaryScreen()),
-      ("Advances", Icons.account_balance_wallet, const MyAdvanceScreen()),
-      ("Slips", Icons.receipt_long, const MySalarySlipsScreen()),
-      ("Notifications", Icons.notifications, const NotificationsScreen()),
-      ("Profile", Icons.person, const ProfileScreen()),
+      ("My Attendance", Icons.calendar_month, const MyAttendanceScreen()), // Filled icon
+      ("My Salary", Icons.payments, const MySalaryScreen()), // Filled icon
+      ("Advances", Icons.account_balance_wallet, const MyAdvanceScreen()), // Filled icon
+      ("Slips", Icons.receipt_long, const MySalarySlipsScreen()), // Filled icon
+      ("Notifications", Icons.notifications, const NotificationsScreen()), // Filled icon
+      ("Profile", Icons.person, const ProfileScreen()), // Filled icon
     ];
 
     return GridView.count(
@@ -713,7 +900,7 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
               CircleAvatar(
                 backgroundColor: const Color(0xFF1E88E5),
                 radius: 28,
-                child: Icon(item.$2, color: Colors.white),
+                child: Icon(item.$2, color: Colors.white), // Filled icon
               ),
               const SizedBox(height: 6),
               Text(item.$1,

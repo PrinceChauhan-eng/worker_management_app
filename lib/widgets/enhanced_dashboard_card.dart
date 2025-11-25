@@ -32,17 +32,12 @@ class EnhancedDashboardCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16), // Consistent radius
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.4),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-          BoxShadow(
-            color: color.withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: .08), // Updated shadow
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -58,7 +53,7 @@ class EnhancedDashboardCard extends StatelessWidget {
           Text(
             value,
             style: GoogleFonts.poppins(
-              fontSize: 28,
+              fontSize: 28, // Consistent font size
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
@@ -67,7 +62,7 @@ class EnhancedDashboardCard extends StatelessWidget {
           Text(
             title,
             style: GoogleFonts.poppins(
-              fontSize: 14,
+              fontSize: 14, // Consistent font size
               fontWeight: FontWeight.w500,
               color: Colors.white70,
             ),
