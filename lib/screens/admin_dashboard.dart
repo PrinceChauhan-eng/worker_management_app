@@ -52,7 +52,7 @@ class AdminDashboardScreen extends StatelessWidget {
         // Theme toggle button
         IconButton(
           icon: Icon(
-            themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+            themeProvider.isDark ? Icons.light_mode : Icons.dark_mode,
           ),
           onPressed: () {
             themeProvider.toggleTheme();

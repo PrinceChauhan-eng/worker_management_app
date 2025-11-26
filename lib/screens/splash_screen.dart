@@ -47,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen> {
         
         // Set user in provider
         final userProvider = Provider.of<UserProvider>(context, listen: false);
-        userProvider.setCurrentUser(user);
+        userProvider.currentUser = user;
         
         // Navigate to appropriate dashboard
         if (user.role == 'admin') {

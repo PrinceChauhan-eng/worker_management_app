@@ -19,6 +19,7 @@ import '../../widgets/enhanced_attendance_card.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/live_clock.dart'; // Import the LiveClock widget
 import '../login_screen.dart';
+import '../worker/worker_profile_screen.dart'; // Add this import for WorkerProfileScreen
 
 // Import screens for quick actions
 import '../my_attendance_screen.dart';
@@ -564,6 +565,15 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
         ),
         automaticallyImplyLeading: false,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.person, color: Colors.white), // Profile icon
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const WorkerProfileScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white), // Filled icon
             onPressed: _handleAppLogout,

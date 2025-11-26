@@ -28,6 +28,7 @@ class WorkerAttendanceScreen extends StatefulWidget {
 
 class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
   User? _selectedWorker;
+  String? _selectedWorkerId; // Add this to store selected worker ID
   DateTime _selectedDate = DateTime.now();
 
   @override
@@ -36,6 +37,7 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
     // Set the preselected worker if provided
     if (widget.preselectedWorker != null) {
       _selectedWorker = widget.preselectedWorker;
+      _selectedWorkerId = widget.preselectedWorker!.id.toString();
       
       // Auto-load attendance for selected worker and today's date
       if (_selectedWorker != null) {
@@ -105,7 +107,7 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                 ],
               ),
               child: DropdownButtonHideUnderline(
-                child: DropdownButton<User>(
+                child: DropdownButton<String>(
                   isExpanded: true,
                   hint: Text(
                     'Select Worker',
@@ -114,19 +116,34 @@ class _WorkerAttendanceScreenState extends State<WorkerAttendanceScreen> {
                       fontSize: 16,
                     ),
                   ),
-                  value: _selectedWorker,
+                  value: _selectedWorker?.id?.toString() ?? _selectedWorkerId,
                   items: workers.map((worker) {
-                    return DropdownMenuItem<User>(
-                      value: worker,
+                    return DropdownMenuItem<String>(
+                      value: worker.id.toString(),
                       child: Text(
                         worker.name,
                         style: GoogleFonts.poppins(fontSize: 16),
                       ),
                     );
                   }).toList(),
-                  onChanged: (User? worker) {
+                  onChanged: (String? workerId) {
                     setState(() {
-                      _selectedWorker = worker;
+                      _selectedWorkerId = workerId;
+                      _selectedWorker = workers.firstWhere(
+                        (worker) => worker.id.toString() == workerId,
+                        orElse: () => User(
+                          id: 0,
+                          name: '',
+                          phone: '',
+                          password: '',
+                          role: '',
+                          wage: 0.0,
+                          joinDate: '',
+                        ),
+                      );
+                      if (_selectedWorker!.id == 0) {
+                        _selectedWorker = null;
+                      }
                     });
                   },
                   icon: const Icon(

@@ -446,4 +446,34 @@ class AttendanceProvider extends BaseProvider {
       }
     }
   }
+
+  /// Count present days for current month
+  int countPresentForCurrentMonth(int workerId) {
+    final now = DateTime.now();
+    final firstDay = DateTime(now.year, now.month, 1);
+    final lastDay = DateTime(now.year, now.month + 1, 0);
+    
+    return _attendances
+        .where((attendance) =>
+            attendance.workerId == workerId &&
+            attendance.present &&
+            DateTime.parse(attendance.date).isAfter(firstDay.subtract(const Duration(days: 1))) &&
+            DateTime.parse(attendance.date).isBefore(lastDay.add(const Duration(days: 1))))
+        .length;
+  }
+
+  /// Count absent days for current month
+  int countAbsentForCurrentMonth(int workerId) {
+    final now = DateTime.now();
+    final firstDay = DateTime(now.year, now.month, 1);
+    final lastDay = DateTime(now.year, now.month + 1, 0);
+    
+    return _attendances
+        .where((attendance) =>
+            attendance.workerId == workerId &&
+            !attendance.present &&
+            DateTime.parse(attendance.date).isAfter(firstDay.subtract(const Duration(days: 1))) &&
+            DateTime.parse(attendance.date).isBefore(lastDay.add(const Duration(days: 1))))
+        .length;
+  }
 }

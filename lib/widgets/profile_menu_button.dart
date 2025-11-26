@@ -319,7 +319,7 @@ class ProfileMenuButton extends StatelessWidget {
       }
       
       // Clear current user in provider for this tab
-      userProvider.clearCurrentUser();
+      userProvider.signOut();
       
       // Show toast
       Fluttertoast.showToast(

@@ -1,15 +1,17 @@
 import '../models/user.dart';
 import '../services/users_service.dart';
 import '../services/auth_service.dart';
-import '../services/schema_refresher.dart'; // Add this import
+import '../services/schema_refresher.dart';
 import 'base_provider.dart';
 import '../utils/logger.dart';
 import 'package:flutter/widgets.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
+import 'dart:io';
 
 class UserProvider extends BaseProvider {
   final UsersService _usersService = UsersService();
   final AuthService _authService = AuthService();
-  final SchemaRefresher _schemaRefresher = SchemaRefresher(); // Add this
+  final SchemaRefresher _schemaRefresher = SchemaRefresher();
 
   UserProvider() {
     Logger.info('UserProvider created');
@@ -20,6 +22,7 @@ class UserProvider extends BaseProvider {
 
   User? _currentUser;
   User? get currentUser => _currentUser;
+  set currentUser(User? user) => _currentUser = user;
 
   Future<void> loadWorkers() async {
     setState(ViewState.busy);
@@ -221,54 +224,131 @@ class UserProvider extends BaseProvider {
       } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
+        notifyListeners();
         return null;
       }
     }
   }
 
-  void setCurrentUser(User user) {
-    Logger.info('Setting current user: ${user.name} (ID: ${user.id})');
-    Logger.info('User details: Phone=${user.phone}, Role=${user.role}, Email=${user.email}, Verified=${user.emailVerified}');
-    _currentUser = user;
-    // Use addPostFrameCallback to avoid calling notifyListeners during build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      notifyListeners();
-    });
-  }
+  final supabase = Supabase.instance.client;
 
-  void clearCurrentUser() {
-    Logger.info('Clearing current user');
-    _currentUser = null;
-    notifyListeners();
-  }
-
-  Future<User?> getUser(int id) async {
+  Future<String?> _uploadProfileImage(File file) async {
     try {
-      Logger.info('Getting user by ID: $id');
-      final userData = await _usersService.getUser(id);
-      return userData != null ? User.fromMap(userData) : null;
+      final path = "profile_images/${DateTime.now().millisecondsSinceEpoch}.jpg";
+
+      await supabase.storage
+          .from('profile_images')
+          .upload(path, file);
+
+      final url = supabase.storage
+          .from('profile_images')
+          .getPublicUrl(path);
+
+      return url;
     } catch (e) {
-      Logger.error('Error getting user by ID: $e', e);
-      // Try to fix schema errors
-      await _schemaRefresher.tryFixExtendedSchemaError(e);
-      
-      // Retry after schema refresh
-      try {
-        await Future.delayed(const Duration(seconds: 2));
-        final userData = await _usersService.getUser(id);
-        return userData != null ? User.fromMap(userData) : null;
-      } catch (retryError) {
-        Logger.error('Retry failed: $retryError', retryError);
-        rethrow;
-      }
+      print("Image upload failed: $e");
+      return null;
     }
   }
 
-  /// Load workers only if not already loaded or if forced
-  Future<void> loadIfNeeded() async {
-    // Only load if workers list is empty
-    if (_workers.isEmpty) {
-      await loadWorkers();
+  Future<void> updateAdminProfile({
+    required String name,
+    required String phone,
+    required String email,
+    required String address,
+    required String designation,
+    File? imageFile,
+  }) async {
+    String? profileUrl = currentUser?.profilePhoto;
+
+    if (imageFile != null) {
+      final uploadedUrl = await _uploadProfileImage(imageFile);
+      if (uploadedUrl != null) profileUrl = uploadedUrl;
+    }
+
+    await supabase.from('users').update({
+      'name': name,
+      'phone': phone,
+      'email': email,
+      'address': address,
+      'designation': designation,
+      'profilePhoto': profileUrl,
+    }).eq('id', currentUser!.id!);
+
+    currentUser = currentUser!.copyWith(
+      name: name,
+      email: email,
+      phone: phone,
+      address: address,
+      designation: designation,
+      profilePhoto: profileUrl,
+    );
+
+    notifyListeners();
+  }
+
+  Future<void> deleteAccount() async {
+    if (currentUser == null) return;
+
+    await supabase
+        .from('users')
+        .delete()
+        .eq('id', currentUser!.id!);
+
+    currentUser = null;
+    notifyListeners();
+  }
+
+  Future<void> signOut() async {
+    await supabase.auth.signOut();
+    currentUser = null;
+    notifyListeners();
+  }
+
+  Future<void> loadUser(String id) async {
+    final response = await supabase
+        .from('users')
+        .select()
+        .eq('id', id)
+        .single();
+
+    currentUser = User.fromMap(response);
+    notifyListeners();
+  }
+
+  /// Get profile completion percentage
+  double getProfileCompletion() {
+    int total = 5;
+    int filled = 0;
+
+    if (currentUser?.name.isNotEmpty == true) filled++;
+    if (currentUser?.phone.isNotEmpty == true) filled++;
+    if (currentUser?.email?.isNotEmpty == true) filled++;
+    if (currentUser?.address?.isNotEmpty == true) filled++;
+    if (currentUser?.profilePhoto?.isNotEmpty == true) filled++;
+
+    return (filled / total) * 100;
+  }
+
+  /// Get account age in days
+  String getAccountAge() {
+    if (currentUser?.joinDate == null) return "--";
+
+    try {
+      final created = DateTime.parse(currentUser!.joinDate!);
+      final diff = DateTime.now().difference(created).inDays;
+      return "$diff days";
+    } catch (e) {
+      return "--";
+    }
+  }
+
+  /// Get user by ID from workers list
+  Future<User?> getUser(int id) async {
+    try {
+      return _workers.firstWhere((user) => user.id == id);
+    } catch (e) {
+      return null; // Return null if user not found
     }
   }
 }

@@ -157,7 +157,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
         
         // Clear current user in provider
-        userProvider.clearCurrentUser();
+        userProvider.signOut();
 
         // Navigate to login screen
         Navigator.pushAndRemoveUntil(
@@ -239,12 +239,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios), // Filled icon
                 onTap: () {
-                  // Future implementation for profile editing
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Profile editing feature coming soon!'),
-                    ),
-                  );
+                  // Navigate to the enhanced admin profile screen
+                  Navigator.pushNamed(context, '/admin_profile');
                 },
               ),
             ),

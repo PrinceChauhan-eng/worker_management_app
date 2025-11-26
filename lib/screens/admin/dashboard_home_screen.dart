@@ -3,18 +3,18 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../providers/user_provider.dart';
+import '../../providers/attendance_provider.dart';
 import '../../providers/login_status_provider.dart';
-import '../../providers/attendance_provider.dart'; // Add attendance provider
 import '../../models/user.dart';
-import '../../models/login_status.dart';
-import '../../models/attendance.dart'; // Add attendance model
+import '../../models/attendance.dart';
+import '../../models/login_status.dart'; // Add this import
+import '../admin/worker_attendance_screen.dart';
+import '../admin/worker_profile_view_screen.dart';
 import '../../widgets/shimmer_loading.dart';
-import '../../widgets/dashboard_summary_row.dart'; // Add this import
+import '../../widgets/dashboard_summary_row.dart';
 import '../process_salary_screen.dart';
-import '../admin/worker_attendance_screen.dart'; // Add worker attendance screen
-import '../admin/advance_management_screen.dart'; // Add new advance management screen
-import '../reports_screen.dart'; // Add reports screen
-
+import '../admin/advance_management_screen.dart';
+import '../reports_screen.dart';
 
 // Helper function to format time strings with proper timezone conversion
 String formatTimeString(String? timeStr, String dateStr) {
@@ -520,35 +520,19 @@ class _WorkerAttendanceSessionCardState extends State<_WorkerAttendanceSessionCa
                           }
                           
                           return ListTile(
-                            onTap: () async {
-                              final changed = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => WorkerAttendanceScreen(
-                                    preselectedWorker: User(
-                                      id: att.workerId,
-                                      name: workerName,
-                                      phone: '', // Required but not used in this context
-                                      password: '', // Required but not used in this context
-                                      role: 'worker',
-                                      wage: 0.0, // Required but not used in this context
-                                      joinDate: '', // Required but not used in this context
-                                    ),
-                                  ),
-                                ),
-                              );
-
-                              // If attendance was changed, refresh the dashboard
-                              if (changed == true) {
-                                _loadTodayAttendance();
-                              }
+                            onTap: () {
+                              // Show quick profile popup
+                              _showWorkerQuickProfile(context, snapshot.data!);
                             },
                             leading: CircleAvatar(
+                              radius: 22,
+                              backgroundImage: snapshot.data?.profilePhoto != null
+                                  ? NetworkImage(snapshot.data!.profilePhoto!)
+                                  : null,
+                              child: snapshot.data?.profilePhoto == null
+                                  ? const Icon(Icons.person)
+                                  : null,
                               backgroundColor: color.withOpacity(.2),
-                              child: Icon(
-                                Icons.person, // Filled icon
-                                color: color,
-                              ),
                             ),
                             title: Text(workerName),
                             subtitle: Text("In: $timeIn   |   Out: $timeOut"),
@@ -595,6 +579,68 @@ class _WorkerAttendanceSessionCardState extends State<_WorkerAttendanceSessionCa
                 ),
         ],
       ),
+    );
+  }
+
+  void _showWorkerQuickProfile(BuildContext context, User worker) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // profile photo
+              CircleAvatar(
+                radius: 40,
+                backgroundImage: worker.profilePhoto != null
+                    ? NetworkImage(worker.profilePhoto!)
+                    : null,
+                child: worker.profilePhoto == null
+                    ? const Icon(Icons.person, size: 40)
+                    : null,
+              ),
+
+              const SizedBox(height: 10),
+
+              Text(
+                worker.name,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 4),
+
+              Text(
+                worker.phone ?? "No phone",
+                style: const TextStyle(color: Colors.grey),
+              ),
+
+              const SizedBox(height: 16),
+
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => WorkerProfileViewScreen(worker: worker),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.person),
+                label: const Text("View Full Profile"),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

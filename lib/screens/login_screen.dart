@@ -138,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
           final user = authProvider.currentUser!;
           
           // Set current user in user provider for backward compatibility
-          userProvider.setCurrentUser(user);
+          userProvider.currentUser = user;
           
           // Show success message
           Fluttertoast.showToast(

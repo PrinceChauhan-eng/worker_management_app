@@ -10,13 +10,16 @@ import 'providers/salary_provider.dart';
 import 'providers/login_status_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/activity_provider.dart';
 import 'services/notification_service.dart';
 import 'services/database_updater.dart';
-import 'services/location_table_updater.dart'; // Add this import
+import 'services/location_table_updater.dart';
 import 'screens/splash_screen.dart';
 import 'screens/my_attendance_screen.dart';
 import 'screens/my_salary_screen.dart';
 import 'screens/my_advance_screen.dart';
+import 'screens/admin_profile_screen.dart';
+import 'screens/admin/profile/admin_profile_edit_screen.dart';
 import 'utils/logger.dart';
 import 'theme/app_theme.dart';
 
@@ -96,6 +99,9 @@ void main() async {
         ChangeNotifierProvider(create: (_) {
           return ThemeProvider();
         }),
+        ChangeNotifierProvider(create: (_) {
+          return ActivityProvider();
+        }),
       ],
       child: const MyApp(),
     ),
@@ -127,13 +133,22 @@ class MyApp extends StatelessWidget {
               },
             ),
           ),
-          themeMode: themeProvider.themeMode,
+          themeMode: themeProvider.mode,
           home: const SplashScreen(),
           debugShowCheckedModeBanner: false,
           routes: {
             '/my_attendance': (context) => const MyAttendanceScreen(),
             '/my_salary': (context) => const MySalaryScreen(),
             '/my_advance': (context) => const MyAdvanceScreen(),
+            '/admin_profile': (context) => const AdminProfileScreen(),
+            '/admin_profile_edit': (context) {
+              final userProvider = Provider.of<UserProvider>(context, listen: false);
+              final user = userProvider.currentUser;
+              if (user == null) {
+                throw Exception('User not found');
+              }
+              return AdminProfileEditScreen();
+            },
           },
         );
       },
