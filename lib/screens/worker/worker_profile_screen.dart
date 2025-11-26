@@ -126,10 +126,8 @@ class _ProfileBanner extends StatelessWidget {
 
                 ElevatedButton(
                   onPressed: () {
-                    // TODO: Implement edit profile functionality for workers
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Edit profile functionality to be implemented for workers"))
-                    );
+                    // Navigate to edit profile screen
+                    Navigator.pushNamed(context, '/worker-profile-edit');
                   },
                   style: ElevatedButton.styleFrom(
                     elevation: 3,
@@ -148,6 +146,7 @@ class _ProfileBanner extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
+
               ],
             ),
           ),

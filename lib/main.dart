@@ -20,6 +20,7 @@ import 'screens/my_salary_screen.dart';
 import 'screens/my_advance_screen.dart';
 import 'screens/admin_profile_screen.dart';
 import 'screens/admin/profile/admin_profile_edit_screen.dart';
+import 'screens/worker/profile/worker_profile_edit_screen.dart';
 import 'utils/logger.dart';
 import 'theme/app_theme.dart';
 
@@ -148,6 +149,14 @@ class MyApp extends StatelessWidget {
                 throw Exception('User not found');
               }
               return AdminProfileEditScreen();
+            },
+            '/worker-profile-edit': (context) {
+              final userProvider = Provider.of<UserProvider>(context, listen: false);
+              final user = userProvider.currentUser;
+              if (user == null) {
+                throw Exception('User not found');
+              }
+              return const WorkerProfileEditScreen();
             },
           },
         );

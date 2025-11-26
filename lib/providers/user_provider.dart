@@ -287,6 +287,45 @@ class UserProvider extends BaseProvider {
     notifyListeners();
   }
 
+  Future<void> updateWorkerProfile({
+    required String name,
+    required String phone,
+    required String email,
+    required String address,
+    required String designation,
+    double? wage,
+    File? imageFile,
+  }) async {
+    String? profileUrl = currentUser?.profilePhoto;
+
+    if (imageFile != null) {
+      final uploadedUrl = await _uploadProfileImage(imageFile);
+      if (uploadedUrl != null) profileUrl = uploadedUrl;
+    }
+
+    await supabase.from('users').update({
+      'name': name,
+      'phone': phone,
+      'email': email,
+      'address': address,
+      'designation': designation,
+      'wage': wage,
+      'profilePhoto': profileUrl,
+    }).eq('id', currentUser!.id!);
+
+    currentUser = currentUser!.copyWith(
+      name: name,
+      email: email,
+      phone: phone,
+      address: address,
+      designation: designation,
+      wage: wage,
+      profilePhoto: profileUrl,
+    );
+
+    notifyListeners();
+  }
+
   Future<void> deleteAccount() async {
     if (currentUser == null) return;
 
