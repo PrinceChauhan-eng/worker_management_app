@@ -7,7 +7,7 @@ import '../providers/user_provider.dart';
 import '../services/session_manager.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/custom_button.dart';
-import 'login_screen.dart';
+import 'auth/new_login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -162,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // Navigate to login screen
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          MaterialPageRoute(builder: (context) => const NewLoginScreen()),
           (route) => false,
         );
       } catch (e) {
@@ -192,6 +192,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
         onLeadingPressed: () {
           Navigator.pop(context);
         },
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: const Text('Confirm Logout'),
+                    content: const Text('Are you sure you want to logout?'),
+                    actions: <Widget>[
+                      TextButton(
+                        child: const Text('Cancel'),
+                        onPressed: () => Navigator.of(context).pop(false),
+                      ),
+                      TextButton(
+                        child: const Text('Logout'),
+                        onPressed: () => Navigator.of(context).pop(true),
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              if (confirm == true) {
+                await userProvider.signOut();
+                if (context.mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const NewLoginScreen()),
+                    (route) => false,
+                  );
+                }
+              }
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),

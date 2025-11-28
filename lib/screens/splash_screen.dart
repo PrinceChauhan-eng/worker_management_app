@@ -7,7 +7,7 @@ import '../providers/user_provider.dart';
 // Import User model
 // Import UsersService
 import '../services/route_guard.dart';
-import 'login_screen.dart';
+import 'auth/new_login_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'worker_dashboard/worker_dashboard_screen.dart';
 
@@ -68,7 +68,7 @@ class _SplashScreenState extends State<SplashScreen> {
         print('No valid session found, navigating to login screen');
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          MaterialPageRoute(builder: (context) => const NewLoginScreen()),
         );
       }
     } catch (e, stackTrace) {
@@ -95,7 +95,7 @@ class _SplashScreenState extends State<SplashScreen> {
       
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        MaterialPageRoute(builder: (context) => const NewLoginScreen()),
       );
     }
   }

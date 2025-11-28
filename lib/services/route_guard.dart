@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/session_manager.dart';
 import '../services/users_service.dart';
-import '../screens/login_screen.dart';
+import '../screens/auth/new_login_screen.dart';
 import '../screens/admin_dashboard_screen.dart';
 import '../screens/worker_dashboard/worker_dashboard_screen.dart';
 import '../utils/logger.dart';
@@ -87,14 +87,18 @@ class RouteGuard {
     } else if (user.role == 'worker') {
       return const WorkerDashboardScreen();
     } else {
-      return const LoginScreen();
+      return const NewLoginScreen();
     }
   }
 
-  static void redirectToLogin(BuildContext context) {
+  static Widget getLoginScreen() {
+    return const NewLoginScreen();
+  }
+
+  static Future<void> redirectToLogin(BuildContext context) async {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      MaterialPageRoute(builder: (context) => const NewLoginScreen()),
       (route) => false,
     );
   }

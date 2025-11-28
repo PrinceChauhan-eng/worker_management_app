@@ -19,8 +19,11 @@ import 'screens/my_attendance_screen.dart';
 import 'screens/my_salary_screen.dart';
 import 'screens/my_advance_screen.dart';
 import 'screens/admin_profile_screen.dart';
+import 'screens/admin_dashboard_screen.dart'; // Add this import
 import 'screens/admin/profile/admin_profile_edit_screen.dart';
 import 'screens/worker/profile/worker_profile_edit_screen.dart';
+import 'screens/auth/new_login_screen.dart';
+import 'screens/worker_dashboard/worker_dashboard_screen.dart';
 import 'utils/logger.dart';
 import 'theme/app_theme.dart';
 
@@ -142,6 +145,7 @@ class MyApp extends StatelessWidget {
             '/my_salary': (context) => const MySalaryScreen(),
             '/my_advance': (context) => const MyAdvanceScreen(),
             '/admin_profile': (context) => const AdminProfileScreen(),
+            '/admin_dashboard': (context) => const AdminDashboardScreen(), // Add this route
             '/admin_profile_edit': (context) {
               final userProvider = Provider.of<UserProvider>(context, listen: false);
               final user = userProvider.currentUser;
@@ -158,6 +162,15 @@ class MyApp extends StatelessWidget {
               }
               return const WorkerProfileEditScreen();
             },
+            '/worker-dashboard': (context) {
+              final userProvider = Provider.of<UserProvider>(context, listen: false);
+              final user = userProvider.currentUser;
+              if (user == null) {
+                throw Exception('User not found');
+              }
+              return const WorkerDashboardScreen(openAttendanceDetails: false);
+            },
+            '/login': (context) => const NewLoginScreen(),
           },
         );
       },

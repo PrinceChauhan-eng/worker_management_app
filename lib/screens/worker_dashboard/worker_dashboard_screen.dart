@@ -18,7 +18,7 @@ import '../../services/location_service.dart';
 import '../../widgets/enhanced_attendance_card.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/live_clock.dart'; // Import the LiveClock widget
-import '../login_screen.dart';
+import '../auth/new_login_screen.dart';
 import '../worker/worker_profile_screen.dart'; // Add this import for WorkerProfileScreen
 
 // Import screens for quick actions
@@ -517,7 +517,7 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
       if (context.mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          MaterialPageRoute(builder: (context) => const NewLoginScreen()),
           (route) => false,
         );
       }

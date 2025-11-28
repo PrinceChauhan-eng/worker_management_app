@@ -7,7 +7,7 @@ import '../services/session_manager.dart';
 import '../screens/profile_screen.dart';
 import '../screens/admin_profile_screen.dart'; // Import the new admin profile screen
 import '../screens/settings_screen.dart';
-import '../screens/login_screen.dart';
+import '../screens/auth/new_login_screen.dart';
 
 class ProfileMenuButton extends StatelessWidget {
   const ProfileMenuButton({super.key});
@@ -332,7 +332,7 @@ class ProfileMenuButton extends StatelessWidget {
         // Navigate directly to login screen
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          MaterialPageRoute(builder: (context) => const NewLoginScreen()),
           (route) => false,
         );
       }
