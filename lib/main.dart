@@ -19,10 +19,11 @@ import 'screens/my_attendance_screen.dart';
 import 'screens/my_salary_screen.dart';
 import 'screens/my_advance_screen.dart';
 import 'screens/admin_profile_screen.dart';
-import 'screens/admin_dashboard_screen.dart'; // Add this import
+import 'screens/admin_dashboard_screen.dart';
 import 'screens/admin/profile/admin_profile_edit_screen.dart';
 import 'screens/worker/profile/worker_profile_edit_screen.dart';
 import 'screens/auth/new_login_screen.dart';
+import 'screens/auth/app_splash_screen.dart';
 import 'screens/worker_dashboard/worker_dashboard_screen.dart';
 import 'utils/logger.dart';
 import 'theme/app_theme.dart';
@@ -138,14 +139,14 @@ class MyApp extends StatelessWidget {
             ),
           ),
           themeMode: themeProvider.mode,
-          home: const SplashScreen(),
-          debugShowCheckedModeBanner: false,
+          initialRoute: "/splash", // Set splash screen as initial route
           routes: {
+            '/splash': (context) => const AppSplashScreen(), // Add splash route
             '/my_attendance': (context) => const MyAttendanceScreen(),
             '/my_salary': (context) => const MySalaryScreen(),
             '/my_advance': (context) => const MyAdvanceScreen(),
             '/admin_profile': (context) => const AdminProfileScreen(),
-            '/admin_dashboard': (context) => const AdminDashboardScreen(), // Add this route
+            '/admin_dashboard': (context) => const AdminDashboardScreen(),
             '/admin_profile_edit': (context) {
               final userProvider = Provider.of<UserProvider>(context, listen: false);
               final user = userProvider.currentUser;

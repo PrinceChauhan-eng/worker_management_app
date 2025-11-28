@@ -98,6 +98,8 @@ flutter:
     - assets/images/
     - assets/profiles/
     - assets/id_proofs/
+    - assets/logo.png
+    - assets/loading.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
