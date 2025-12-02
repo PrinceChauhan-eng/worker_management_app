@@ -37,20 +37,6 @@ void main() async {
     anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFoamtuZ3VkcHhyemxkYWN4bHB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NTk2NjAsImV4cCI6MjA3ODMzNTY2MH0.GlY_-LZSR7nxx1wllMGnJuDu4oxw629LMBm_2XaOufg'),
   );
 
-  // Add Supabase authentication state change listener
-  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-    final event = data.event;
-
-    if (event == AuthChangeEvent.signedIn) {
-      // user logged in successfully after redirect
-      print("User signed in");
-    }
-
-    if (event == AuthChangeEvent.signedOut) {
-      print("User signed out");
-    }
-  });
-
   // Initialize notification service
   await NotificationService().init();
   
@@ -108,9 +94,33 @@ void main() async {
           return ActivityProvider();
         }),
       ],
-      child: const MyApp(),
+      child: AppInitializer(child: const MyApp()),
     ),
   );
+}
+
+class AppInitializer extends StatefulWidget {
+  final Widget child;
+  const AppInitializer({required this.child, super.key});
+
+  @override
+  State<AppInitializer> createState() => _AppInitializerState();
+}
+
+class _AppInitializerState extends State<AppInitializer> {
+  @override
+  void initState() {
+    super.initState();
+
+    Future.microtask(() async {
+      // restore custom session
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      await userProvider.restoreSession();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class MyApp extends StatelessWidget {
@@ -164,6 +174,14 @@ class MyApp extends StatelessWidget {
               return const WorkerProfileEditScreen();
             },
             '/worker-dashboard': (context) {
+              final userProvider = Provider.of<UserProvider>(context, listen: false);
+              final user = userProvider.currentUser;
+              if (user == null) {
+                throw Exception('User not found');
+              }
+              return const WorkerDashboardScreen(openAttendanceDetails: false);
+            },
+            '/worker_dashboard': (context) {
               final userProvider = Provider.of<UserProvider>(context, listen: false);
               final user = userProvider.currentUser;
               if (user == null) {

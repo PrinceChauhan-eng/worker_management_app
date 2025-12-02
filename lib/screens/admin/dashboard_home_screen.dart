@@ -529,10 +529,10 @@ class _WorkerAttendanceSessionCardState extends State<_WorkerAttendanceSessionCa
                               backgroundImage: snapshot.data?.profilePhoto != null
                                   ? NetworkImage(snapshot.data!.profilePhoto!)
                                   : null,
+                              backgroundColor: color.withOpacity(.2),
                               child: snapshot.data?.profilePhoto == null
                                   ? const Icon(Icons.person)
                                   : null,
-                              backgroundColor: color.withOpacity(.2),
                             ),
                             title: Text(workerName),
                             subtitle: Text("In: $timeIn   |   Out: $timeOut"),

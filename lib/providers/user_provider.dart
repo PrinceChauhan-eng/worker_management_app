@@ -2,10 +2,14 @@ import '../models/user.dart';
 import '../services/users_service.dart';
 import '../services/auth_service.dart';
 import '../services/schema_refresher.dart';
+import '../services/session_manager.dart';
 import 'base_provider.dart';
 import '../utils/logger.dart';
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:flutter/material.dart';
+import '../services/image_service.dart';
 import 'dart:io';
 
 class UserProvider extends BaseProvider {
@@ -15,6 +19,8 @@ class UserProvider extends BaseProvider {
 
   UserProvider() {
     Logger.info('UserProvider created');
+    // Restore session when provider is created
+    _restoreSessionOnStartup();
   }
 
   List<User> _workers = [];
@@ -38,7 +44,7 @@ class UserProvider extends BaseProvider {
       }
 
       setState(ViewState.idle);
-      notifyListeners();
+      Future.microtask(() => notifyListeners());
     } catch (e) {
       Logger.error('Error loading workers: $e', e);
       // Try to fix schema errors
@@ -57,11 +63,11 @@ class UserProvider extends BaseProvider {
         }
         
         setState(ViewState.idle);
-        notifyListeners();
+        Future.microtask(() => notifyListeners());
       } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
-        notifyListeners();
+        Future.microtask(() => notifyListeners());
       }
     }
   }
@@ -112,7 +118,7 @@ class UserProvider extends BaseProvider {
 
       await loadWorkers();
       setState(ViewState.idle);
-      notifyListeners();
+      Future.microtask(() => notifyListeners());
       Logger.info('User update completed successfully');
       return true;
     } catch (e) {
@@ -133,13 +139,13 @@ class UserProvider extends BaseProvider {
 
         await loadWorkers();
         setState(ViewState.idle);
-        notifyListeners();
+        Future.microtask(() => notifyListeners());
         Logger.info('User update completed successfully');
         return true;
       } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
-        notifyListeners();
+        Future.microtask(() => notifyListeners());
         return false;
       }
     }
@@ -182,7 +188,7 @@ class UserProvider extends BaseProvider {
       if (userData == null) {
         Logger.warn('Authentication failed: User not found with phone: $phone');
         setState(ViewState.idle);
-        notifyListeners();
+        Future.microtask(() => notifyListeners());
         return null;
       }
       
@@ -193,7 +199,7 @@ class UserProvider extends BaseProvider {
       Logger.info('Authenticated user: ${_currentUser!.name}, role: ${_currentUser!.role}');
       
       setState(ViewState.idle);
-      notifyListeners();
+      Future.microtask(() => notifyListeners());
       return _currentUser;
     } catch (e) {
       Logger.error('Error authenticating user: $e', e);
@@ -208,7 +214,7 @@ class UserProvider extends BaseProvider {
         if (userData == null) {
           Logger.warn('Authentication failed: User not found with phone: $phone');
           setState(ViewState.idle);
-          notifyListeners();
+          Future.microtask(() => notifyListeners());
           return null;
         }
         
@@ -219,12 +225,12 @@ class UserProvider extends BaseProvider {
         Logger.info('Authenticated user: ${_currentUser!.name}, role: ${_currentUser!.role}');
         
         setState(ViewState.idle);
-        notifyListeners();
+        Future.microtask(() => notifyListeners());
         return _currentUser;
       } catch (retryError) {
         Logger.error('Retry failed: $retryError', retryError);
         setState(ViewState.idle);
-        notifyListeners();
+        Future.microtask(() => notifyListeners());
         return null;
       }
     }
@@ -284,7 +290,7 @@ class UserProvider extends BaseProvider {
       profilePhoto: profileUrl,
     );
 
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
   Future<void> updateWorkerProfile({
@@ -323,7 +329,7 @@ class UserProvider extends BaseProvider {
       profilePhoto: profileUrl,
     );
 
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
   Future<void> deleteAccount() async {
@@ -335,13 +341,13 @@ class UserProvider extends BaseProvider {
         .eq('id', currentUser!.id!);
 
     currentUser = null;
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
   Future<void> signOut() async {
-    await supabase.auth.signOut();
+    await SessionManager().clearCurrentUserId();
     currentUser = null;
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
   Future<void> loadUser(String id) async {
@@ -352,7 +358,7 @@ class UserProvider extends BaseProvider {
         .single();
 
     currentUser = User.fromMap(response);
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
   /// Get profile completion percentage
@@ -374,7 +380,7 @@ class UserProvider extends BaseProvider {
     if (currentUser?.joinDate == null) return "--";
 
     try {
-      final created = DateTime.parse(currentUser!.joinDate!);
+      final created = DateTime.parse(currentUser!.joinDate);
       final diff = DateTime.now().difference(created).inDays;
       return "$diff days";
     } catch (e) {
@@ -388,6 +394,64 @@ class UserProvider extends BaseProvider {
       return _workers.firstWhere((user) => user.id == id);
     } catch (e) {
       return null; // Return null if user not found
+    }
+  }
+
+  Future<void> restoreSession() async {
+    final savedId = await SessionManager().getCurrentUserId();
+    if (savedId != null) {
+      final data = await UsersService().getUser(savedId);
+      if (data != null) {
+        currentUser = User.fromMap(data);
+        Future.microtask(() => notifyListeners());
+      }
+    }
+  }
+
+  Future<void> updateProfilePhoto(String path) async {
+    final uploadedUrl = await UsersService.uploadProfilePhoto(
+      userId: currentUser!.id.toString(),
+      filePath: path,
+    );
+
+    if (uploadedUrl != null) {
+      currentUser = currentUser!.copyWith(profilePhoto: uploadedUrl);
+      notifyListeners();
+    }
+  }
+
+  /// Upload-first → UI always shows server URL
+  Future<void> updateAdminProfilePhoto(ImageData image) async {
+    try {
+      String? uploadedUrl;
+
+      if (image.isWeb) {
+        uploadedUrl = await UsersService.uploadAdminPhotoWeb(
+          userId: currentUser!.id.toString(),
+          bytes: image.bytes!,
+        );
+      } else {
+        uploadedUrl = await UsersService.uploadAdminPhotoMobile(
+          userId: currentUser!.id.toString(),
+          filePath: image.path!,
+        );
+      }
+
+      if (uploadedUrl != null) {
+        currentUser = currentUser!.copyWith(profilePhoto: uploadedUrl);
+        notifyListeners();
+      }
+    } catch (e) {
+      print("updateAdminProfilePhoto error: $e");
+    }
+  }
+
+  /// Restore session when provider is initialized
+  Future<void> _restoreSessionOnStartup() async {
+    try {
+      await restoreSession();
+    } catch (e) {
+      Logger.error('Error restoring session on startup: $e', e);
     }
   }
 }

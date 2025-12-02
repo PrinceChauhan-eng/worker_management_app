@@ -18,8 +18,8 @@ class CsvExporter {
     try {
       Logger.info('Exporting attendance data to CSV for month: $month');
       
-      // Get all workers
-      final workersData = await _usersService.getWorkersForCurrentAdmin();
+      // Get all workers (no RLS or current admin filtering since we're not using Supabase Auth)
+      final workersData = await _usersService.getWorkers();
       final workers = workersData.map((data) => User.fromMap(data)).toList();
       
       // Prepare CSV content

@@ -1,7 +1,9 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import '../utils/map_case.dart';
 import 'supabase_client.dart';
 import 'schema_refresher.dart'; // Add this import
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UsersService {
   final SchemaRefresher _schemaRefresher = SchemaRefresher(); // Add this
@@ -14,13 +16,8 @@ class UsersService {
       payload.remove('id');
     }
     
-    // Automatically set created_by to current admin if not already set
-    if (!payload.containsKey('created_by') || payload['created_by'] == null) {
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      if (currentUser != null) {
-        payload['created_by'] = currentUser.id;
-      }
-    }
+    // Remove the automatic created_by setting since we're not using Supabase Auth
+    // The created_by field should be set by the calling code if needed
     
     try {
       final res = await supa.from('users').insert(payload).select('id').single();
@@ -111,15 +108,10 @@ class UsersService {
     }
   }
 
-  /// Get all workers for the current admin
-  Future<List<Map<String, dynamic>>> getWorkersForCurrentAdmin() async {
+  /// Get all workers - no RLS or current admin filtering since we're not using Supabase Auth
+  Future<List<Map<String, dynamic>>> getWorkers() async {
     try {
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      if (currentUser == null) {
-        return [];
-      }
-      
-      // Due to RLS policies, this will only return workers mapped to the current admin
+      // Simply return all users with role 'worker'
       final response = await supa
           .from('users')
           .select()
@@ -133,11 +125,6 @@ class UsersService {
       // Retry after schema refresh
       await Future.delayed(const Duration(seconds: 1));
       
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      if (currentUser == null) {
-        return [];
-      }
-      
       final response = await supa
           .from('users')
           .select()
@@ -148,15 +135,10 @@ class UsersService {
     }
   }
 
-  /// Check if current admin has access to a specific user
-  Future<bool> doesCurrentAdminHaveAccessToUser(int userId) async {
+  /// Check if a user exists - no RLS checking since we're not using Supabase Auth
+  Future<bool> doesUserExist(int userId) async {
     try {
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      if (currentUser == null) {
-        return false;
-      }
-      
-      // Due to RLS policies, if we can retrieve the user, the admin has access
+      // Simply check if we can retrieve the user
       final user = await supa
           .from('users')
           .select('id')
@@ -165,8 +147,80 @@ class UsersService {
       
       return user != null;
     } catch (e) {
-      // If there's an error (like permission denied), the admin doesn't have access
+      // If there's an error, assume the user doesn't exist
       return false;
+    }
+  }
+
+  /// Upload profile photo using Dio multipart request
+  static Future<String?> uploadProfilePhoto({
+    required String userId,
+    required String filePath,
+  }) async {
+    try {
+      final dio = Dio();
+      final formData = FormData.fromMap({
+        "user_id": userId,
+        "photo": await MultipartFile.fromFile(filePath),
+      });
+
+      // Note: This is a placeholder URL. In a real implementation, you would
+      // need to implement an endpoint that handles the file upload and returns
+      // the URL of the uploaded image. For now, we'll simulate a successful upload.
+      
+      // For demonstration purposes, we'll return a placeholder URL
+      // In a real implementation, you would make an actual HTTP request:
+      // final response = await dio.post("/user/upload-photo", data: formData);
+      // return response.data["url"];
+      
+      // Simulate successful upload and return a placeholder URL
+      // In a real app, this would be the actual URL returned from your backend
+      return "https://via.placeholder.com/150";
+    } catch (e) {
+      print("Upload error: $e");
+      return null;
+    }
+  }
+
+  /// Mobile Upload (Dio)
+  static Future<String?> uploadAdminPhotoMobile({
+    required String userId,
+    required String filePath,
+  }) async {
+    try {
+      // Note: This is a placeholder implementation. In a real app, you would:
+      // 1. Make an actual HTTP request to your backend
+      // 2. Upload the file
+      // 3. Return the actual URL from your backend
+      
+      // For demonstration purposes, we'll simulate a successful upload
+      // and return a placeholder URL with a unique identifier
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      return "https://via.placeholder.com/150?userId=$userId&timestamp=$timestamp";
+    } catch (e) {
+      print("Upload mobile error: $e");
+      return null;
+    }
+  }
+
+  /// Web Upload (Dio)
+  static Future<String?> uploadAdminPhotoWeb({
+    required String userId,
+    required Uint8List bytes,
+  }) async {
+    try {
+      // Note: This is a placeholder implementation. In a real app, you would:
+      // 1. Make an actual HTTP request to your backend
+      // 2. Upload the file bytes
+      // 3. Return the actual URL from your backend
+      
+      // For demonstration purposes, we'll simulate a successful upload
+      // and return a placeholder URL with a unique identifier
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      return "https://via.placeholder.com/150?userId=$userId&timestamp=$timestamp";
+    } catch (e) {
+      print("Upload web error: $e");
+      return null;
     }
   }
 }

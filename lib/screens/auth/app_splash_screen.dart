@@ -1,6 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../widgets/modern_loader.dart';
+import '../../providers/user_provider.dart';
+import '../../models/user.dart';
+import '../../services/users_service.dart';
+import '../../services/session_manager.dart';
+import '../../utils/error_reporter.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class AppSplashScreen extends StatefulWidget {
   const AppSplashScreen({super.key});
@@ -92,9 +99,86 @@ class _AppSplashScreenState extends State<AppSplashScreen>
     // Auto navigation after animation
     Timer(const Duration(seconds: 8), () { // Extended to 8 seconds
       if (mounted) {
-        Navigator.pushReplacementNamed(context, "/login");
+        _navigateToNextScreen();
       }
     });
+  }
+
+  Future<void> _navigateToNextScreen() async {
+    try {
+      print('AppSplashScreen: Checking for existing session');
+
+      if (!mounted) {
+        print('Widget not mounted, returning');
+        return;
+      }
+
+      // Replace the route guard logic with direct session management
+      final savedId = await SessionManager().getCurrentUserId();
+      
+      // mounted check after await
+      if (!mounted) return;
+
+      if (savedId != null) {
+        print('AppSplashScreen: Found saved session for user ID: $savedId');
+        final userData = await UsersService().getUser(savedId);
+        
+        // mounted check after await
+        if (!mounted) return;
+        
+        if (userData != null) {
+          final user = User.fromMap(userData);
+          print('AppSplashScreen: Loaded user data for: ${user.name}, role: ${user.role}');
+
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          userProvider.currentUser = user;
+          // notify safely outside build
+          Future.microtask(() => userProvider.notifyListeners());
+
+          // mounted check before navigation
+          if (!mounted) return;
+
+          if (user.role == "admin") {
+            print('AppSplashScreen: Navigating to admin dashboard');
+            Navigator.pushReplacementNamed(context, "/admin_dashboard");
+          } else {
+            print('AppSplashScreen: Navigating to worker dashboard');
+            Navigator.pushReplacementNamed(context, "/worker-dashboard");
+          }
+        } else {
+          print('AppSplashScreen: User data not found, navigating to login');
+          Navigator.pushReplacementNamed(context, "/login");
+        }
+      } else {
+        print('AppSplashScreen: No saved session found, navigating to login');
+        Navigator.pushReplacementNamed(context, "/login");
+      }
+    } catch (e, stackTrace) {
+      print('=== APP SPLASH SCREEN ERROR ===');
+      print('Error type: ${e.runtimeType}');
+      print('Error message: $e');
+      print('Stack trace: $stackTrace');
+      print('==========================');
+      
+      // Use the error reporter to handle the error
+      ErrorReporter.reportError(e, stackTrace, context: 'App Initialization');
+      
+      // If there's an error, navigate to login screen
+      print('Navigating to Login Screen due to error');
+      
+      String errorMessage = ErrorReporter.getErrorMessage(e);
+      Fluttertoast.showToast(
+        msg: errorMessage,
+        backgroundColor: Colors.red,
+      );
+      
+      // Small delay to show the error message
+      await Future.delayed(const Duration(seconds: 2));
+      
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, "/login");
+      }
+    }
   }
 
   @override

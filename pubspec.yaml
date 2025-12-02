@@ -68,6 +68,8 @@ dependencies:
   crypto: ^3.0.3
   # Supabase integration
   supabase_flutter: ^2.5.6
+  # HTTP client for file uploads
+  dio: ^5.4.0
   # UI enhancements
   shimmer: ^3.0.0
 

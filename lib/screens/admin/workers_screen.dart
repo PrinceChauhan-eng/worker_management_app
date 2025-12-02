@@ -20,7 +20,9 @@ class _WorkersScreenState extends State<WorkersScreen> {
   @override
   void initState() {
     super.initState();
-    _loadWorkers();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadWorkers();
+    });
   }
 
   Future<void> _loadWorkers() async {

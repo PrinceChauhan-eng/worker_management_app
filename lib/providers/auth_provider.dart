@@ -79,7 +79,7 @@ class AuthProvider with ChangeNotifier {
           await sessionManager.setRememberMe(user.phone ?? identifier);
         }
         
-        notifyListeners();
+        Future.microtask(() => notifyListeners());
         return true;
       } else {
         _setError('Invalid credentials');
@@ -97,13 +97,20 @@ class AuthProvider with ChangeNotifier {
   /// Logout current user
   Future<void> logout({bool clearAllSessions = false}) async {
     _setLoading(true);
-    
+
     try {
       final sessionManager = SessionManager();
-      await sessionManager.logout(clearAllSessions);
-      
+
+      if (clearAllSessions) {
+        await sessionManager.clearAllSessions();
+      } else {
+        // Clear only this tab's session
+        await sessionManager.clearCurrentUserId();
+      }
+
       _currentUser = null;
-      notifyListeners();
+
+      Future.microtask(() => notifyListeners());
     } catch (e) {
       Logger.error('Logout error: $e', e);
       _setError('Logout failed');
@@ -128,7 +135,7 @@ class AuthProvider with ChangeNotifier {
     if (_currentUser!.role == 'worker') {
       // Workers can only access worker-specific routes
       return route.startsWith('/worker') || 
-             route == '/worker_dashboard' || 
+             route == '/worker-dashboard' || 
              route == '/' || 
              route.startsWith('/profile');
     }
@@ -139,29 +146,29 @@ class AuthProvider with ChangeNotifier {
   /// Set current user (used during app initialization)
   void setCurrentUser(User user) {
     _currentUser = user;
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
   /// Clear current user
   void clearCurrentUser() {
     _currentUser = null;
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
   // Helper methods
   void _setLoading(bool loading) {
     _isLoading = loading;
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
   void _setError(String error) {
     _errorMessage = error;
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
   void _clearError() {
     _errorMessage = null;
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
   }
 
   bool _isValidEmail(String email) {

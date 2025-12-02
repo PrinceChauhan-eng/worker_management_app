@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
@@ -109,4 +110,29 @@ class ImageService {
       return false;
     }
   }
+
+  /// New method to pick image and return ImageData
+  static Future<ImageData?> pickImageAsData() async {
+    final XFile? file = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+
+    if (file == null) return null;
+
+    if (kIsWeb) {
+      final bytes = await file.readAsBytes();
+      return ImageData(bytes: bytes, isWeb: true);
+    }
+
+    return ImageData(path: file.path, isWeb: false);
+  }
+}
+
+class ImageData {
+  final String? path;
+  final Uint8List? bytes;
+  final bool isWeb;
+
+  ImageData({this.path, this.bytes, required this.isWeb});
 }

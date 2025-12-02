@@ -601,7 +601,7 @@ class _AdvanceManagementScreenState extends State<AdvanceManagementScreen> {
                       const SizedBox(height: 12),
                       // Purpose Dropdown
                       DropdownButtonFormField<String>(
-                        value: _selectedPurpose,
+                        initialValue: _selectedPurpose,
                         items: _purposes
                             .map((p) => DropdownMenuItem(value: p, child: Text(p)))
                             .toList(),

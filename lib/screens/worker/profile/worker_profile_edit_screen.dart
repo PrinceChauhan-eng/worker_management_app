@@ -34,7 +34,7 @@ class _WorkerProfileEditScreenState extends State<WorkerProfileEditScreen> {
     emailCtrl = TextEditingController(text: user?.email ?? "");
     addressCtrl = TextEditingController(text: user?.address ?? "");
     designationCtrl = TextEditingController(text: user?.designation ?? "");
-    wageCtrl = TextEditingController(text: user?.wage?.toString() ?? "");
+    wageCtrl = TextEditingController(text: user?.wage.toString() ?? "");
   }
 
   @override

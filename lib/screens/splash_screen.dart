@@ -4,12 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../utils/error_reporter.dart';
 import '../providers/user_provider.dart';
-// Import User model
-// Import UsersService
-import '../services/route_guard.dart';
-import 'auth/new_login_screen.dart';
-import 'admin_dashboard_screen.dart';
-import 'worker_dashboard/worker_dashboard_screen.dart';
+import '../models/user.dart';
+import '../services/users_service.dart';
+import '../services/session_manager.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -39,37 +36,30 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      // Use route guard to check authentication
-      final user = await RouteGuard.checkAuthentication();
-      
-      if (user != null) {
-        print('Found authenticated user: ${user.name} (ID: ${user.id})');
-        
-        // Set user in provider
-        final userProvider = Provider.of<UserProvider>(context, listen: false);
-        userProvider.currentUser = user;
-        
-        // Navigate to appropriate dashboard
-        if (user.role == 'admin') {
-          print('Navigating to Admin Dashboard');
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
-          );
+      // Replace the route guard logic with direct session management
+      final savedId = await SessionManager().getCurrentUserId();
+
+      if (savedId != null) {
+        final userData = await UsersService().getUser(savedId);
+        if (userData != null) {
+          final user = User.fromMap(userData);
+
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          userProvider.currentUser = user;
+          userProvider.notifyListeners();
+
+          if (!mounted) return;
+
+          if (user.role == "admin") {
+            Navigator.pushReplacementNamed(context, "/admin_dashboard");
+          } else {
+            Navigator.pushReplacementNamed(context, "/worker_dashboard");
+          }
         } else {
-          print('Navigating to Worker Dashboard');
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const WorkerDashboardScreen()),
-          );
+          Navigator.pushReplacementNamed(context, "/login");
         }
       } else {
-        // No valid session found, go to login screen
-        print('No valid session found, navigating to login screen');
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NewLoginScreen()),
-        );
+        Navigator.pushReplacementNamed(context, "/login");
       }
     } catch (e, stackTrace) {
       print('=== SPLASH SCREEN ERROR ===');
@@ -93,10 +83,7 @@ class _SplashScreenState extends State<SplashScreen> {
       // Small delay to show the error message
       await Future.delayed(const Duration(seconds: 2));
       
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const NewLoginScreen()),
-      );
+      Navigator.pushReplacementNamed(context, "/login");
     }
   }
 

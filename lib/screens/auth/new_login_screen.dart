@@ -50,7 +50,7 @@ class _NewLoginScreenState extends State<NewLoginScreen> {
           Navigator.pushReplacementNamed(context, "/admin_dashboard");
         } else {
           // For workers, navigate to worker dashboard
-          Navigator.pushReplacementNamed(context, "/worker-dashboard");
+          Navigator.pushReplacementNamed(context, "/worker_dashboard");
         }
       } else {
         // Login failed

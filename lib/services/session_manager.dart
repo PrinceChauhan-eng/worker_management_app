@@ -251,13 +251,17 @@ class SessionManager {
   // Enhanced logout that can clear either all sessions or just current tab
   Future<void> logout(bool clearAllSessions) async {
     try {
+      // Always clear the current tab user
+      await clearCurrentUserId();
+
+      // Always clear remember me
+      await clearRememberMe();
+
       if (clearAllSessions) {
-        Logger.info('Logging out and clearing all sessions');
+        // Optional: clear everything
         await this.clearAllSessions();
-      } else {
-        Logger.info('Logging out current tab only');
-        await clearCurrentUserId();
       }
+
     } catch (e, stackTrace) {
       Logger.error('Error during logout: $e', e);
       Logger.error('Stack trace: $stackTrace', stackTrace);

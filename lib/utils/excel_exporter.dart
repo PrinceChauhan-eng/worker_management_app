@@ -19,8 +19,8 @@ class ExcelExporter {
     try {
       Logger.info('Exporting salary data to Excel for month: $month');
       
-      // Get all workers
-      final workersData = await _usersService.getWorkersForCurrentAdmin();
+      // Get all workers (no RLS or current admin filtering since we're not using Supabase Auth)
+      final workersData = await _usersService.getWorkers();
       final workers = workersData.map((data) => User.fromMap(data)).toList();
       
       // Create Excel workbook

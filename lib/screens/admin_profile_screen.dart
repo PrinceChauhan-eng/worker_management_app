@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../providers/theme_provider.dart';
 import '../providers/user_provider.dart';
 import '../Animations/FadeAnimation.dart';
 import '../models/user.dart';
+import '../services/image_service.dart';
 
 class AdminProfileScreen extends StatelessWidget {
   const AdminProfileScreen({super.key});
@@ -129,15 +131,24 @@ class _ProfileBanner extends StatelessWidget {
           Positioned(
             top: -40,
             left: 20,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                width: 90,
-                height: 90,
-                color: Colors.grey[300],
-                child: user.profilePhoto != null && user.profilePhoto!.isNotEmpty
-                    ? Image.network(user.profilePhoto!, fit: BoxFit.cover)
-                    : const Icon(Icons.person, size: 50),
+            child: GestureDetector(
+              onTap: () async {
+                final image = await ImageService.pickImageAsData();
+                if (image == null) return;
+
+                await Provider.of<UserProvider>(context, listen: false)
+                    .updateAdminProfilePhoto(image);
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  width: 90,
+                  height: 90,
+                  color: Colors.grey[300],
+                  child: user.profilePhoto != null && user.profilePhoto!.isNotEmpty
+                      ? Image.network(user.profilePhoto!, fit: BoxFit.cover)
+                      : const Icon(Icons.person, size: 50),
+                ),
               ),
             ),
           ),

@@ -1,28 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-// Providers
+import 'package:provider/provider.dart';
+import '../widgets/custom_app_bar.dart';
+import '../widgets/profile_menu_button.dart';
 import '../providers/user_provider.dart';
 import '../providers/login_status_provider.dart';
 import '../providers/notification_provider.dart';
-
-// Widgets
-import '../widgets/custom_app_bar.dart';
-import '../widgets/profile_menu_button.dart';
-
-// Services
-import '../services/route_guard.dart';
-
-// Screens
-import 'notifications_screen.dart';
-
-// Admin module screens
-import 'admin/dashboard_home_screen.dart';
-import 'admin/workers_screen.dart';
-import 'admin/attendance_screen.dart';
-import 'admin/salary_screen.dart';
-import 'admin/admin_reports_screen.dart';
+import '../screens/notifications_screen.dart';
+import '../screens/admin/dashboard_home_screen.dart';
+import '../screens/admin/workers_screen.dart';
+import '../screens/attendance_screen.dart';
+import '../screens/admin/salary_screen.dart';
+import '../screens/admin/admin_reports_screen.dart';
+import '../screens/auth/new_login_screen.dart';
+import '../utils/logger.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -45,7 +36,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
   Future<void> _loadData() async {
@@ -67,7 +60,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (user?.role != "admin") {
       // Redirect to login screen
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        RouteGuard.redirectToLogin(context);
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const NewLoginScreen()),
+          (route) => false,
+        );
       });
       return const SizedBox(); // block access
     }
@@ -130,7 +127,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               },
             ),
 
-            IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
+            IconButton(icon: const Icon(Icons.refresh), onPressed: () {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _loadData();
+              });
+            }),
 
             const ProfileMenuButton(),
           ],

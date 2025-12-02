@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'dart:async';
-
-import '../../providers/user_provider.dart';
-import '../../providers/login_status_provider.dart';
-import '../../providers/attendance_provider.dart';
-import '../../providers/notification_provider.dart';
+import '../../models/user.dart';
 import '../../models/attendance.dart';
-import '../../utils/logger.dart';
-import '../../services/session_manager.dart';
-import '../../services/route_guard.dart';
+import '../../providers/user_provider.dart';
+import '../../providers/attendance_provider.dart';
+import '../../providers/login_status_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../services/location_service.dart';
+import '../../services/session_manager.dart';
 import '../../widgets/enhanced_attendance_card.dart';
 import '../../widgets/shimmer_loading.dart';
 import '../../widgets/live_clock.dart'; // Import the LiveClock widget
+import '../../utils/logger.dart';
 import '../auth/new_login_screen.dart';
 import '../worker/worker_profile_screen.dart'; // Add this import for WorkerProfileScreen
 
@@ -248,7 +247,7 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
 
       final String todayDate =
           DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
-      final String nowTime = Logger.nowTime(); // "HH:mm:ss"
+      final String nowTime = DateFormat('HH:mm:ss').format(DateTime.now().toLocal()); // "HH:mm:ss"
 
       // Capture location data
       String? locationAddress;
@@ -367,7 +366,7 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
 
       final String todayDate =
           DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
-      final String nowTime = Logger.nowTime(); // "HH:mm:ss"
+      final String nowTime = DateFormat('HH:mm:ss').format(DateTime.now().toLocal()); // "HH:mm:ss"
 
       Attendance? att = attendanceProvider.attendances.firstWhere(
         (a) => a.workerId == workerId && a.date == todayDate,
@@ -533,7 +532,11 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen>
     if (user?.role != "worker") {
       // Redirect to login screen
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        RouteGuard.redirectToLogin(context);
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const NewLoginScreen()),
+          (route) => false,
+        );
       });
       return const SizedBox(); // block access
     }
